@@ -10,6 +10,8 @@ import {
   Navigation,
   Loader2,
   GripVertical,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 // ============================================================================
@@ -79,6 +81,9 @@ function RoutePlanner() {
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   const mapDivRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
@@ -91,7 +96,7 @@ function RoutePlanner() {
         if (cancelled || !mapDivRef.current) return;
         const g = window.google;
         mapRef.current = new g.maps.Map(mapDivRef.current, {
-          center: { lat: 39.9334, lng: 32.8597 }, // Ankara
+          center: { lat: 39.9334, lng: 32.8597 },
           zoom: 6,
           disableDefaultUI: false,
           mapTypeControl: false,
@@ -125,11 +130,48 @@ function RoutePlanner() {
     };
   }, []);
 
+  // Trigger map resize on sidebar toggle so Google Maps fills new space
+  useEffect(() => {
+    if (!mapRef.current || !window.google) return;
+    const t = setTimeout(() => {
+      window.google.maps.event.trigger(mapRef.current, "resize");
+    }, 320);
+    return () => clearTimeout(t);
+  }, [sidebarOpen]);
+
   const addStop = () => setStops((s) => [...s, { id: uid(), address: "", datetime: "" }]);
   const removeStop = (id: string) =>
     setStops((s) => (s.length <= 2 ? s : s.filter((x) => x.id !== id)));
   const updateStop = (id: string, patch: Partial<Stop>) =>
     setStops((s) => s.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+
+  const onDragStart = (id: string) => setDragId(id);
+  const onDragOver = (id: string, e: React.DragEvent) => {
+    e.preventDefault();
+    if (dragOverId !== id) setDragOverId(id);
+  };
+  const onDrop = (targetId: string) => {
+    if (!dragId || dragId === targetId) {
+      setDragId(null);
+      setDragOverId(null);
+      return;
+    }
+    setStops((arr) => {
+      const from = arr.findIndex((x) => x.id === dragId);
+      const to = arr.findIndex((x) => x.id === targetId);
+      if (from < 0 || to < 0) return arr;
+      const next = arr.slice();
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+    setDragId(null);
+    setDragOverId(null);
+  };
+  const onDragEnd = () => {
+    setDragId(null);
+    setDragOverId(null);
+  };
 
   const calculate = () => {
     setStatusMsg(null);
@@ -180,95 +222,109 @@ function RoutePlanner() {
   };
 
   return (
-    <div className="flex h-screen flex-col bg-slate-50 text-slate-900 lg:flex-row">
+    <div className="relative flex h-screen flex-col bg-gradient-to-br from-slate-100 via-blue-50 to-indigo-100 text-slate-900 lg:flex-row">
       {/* Sidebar */}
-      <aside className="flex w-full flex-col border-b border-slate-200 bg-white lg:h-screen lg:w-[420px] lg:border-b-0 lg:border-r">
-        {/* Header */}
-        <header className="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-sm shadow-blue-200">
-            <Navigation className="h-5 w-5" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="truncate text-base font-semibold leading-tight">Rota Planlayıcı</h1>
-            <p className="truncate text-xs text-slate-500">Çok duraklı rotanızı planlayın</p>
-          </div>
-        </header>
+      <aside
+        className={`flex flex-col overflow-hidden border-slate-200/70 bg-white/70 backdrop-blur-xl shadow-xl shadow-slate-900/5 transition-all duration-300 ease-in-out lg:h-screen lg:border-r ${
+          sidebarOpen
+            ? "w-full border-b lg:w-[420px]"
+            : "h-0 w-full border-b-0 lg:h-screen lg:w-0 lg:border-r-0"
+        }`}
+      >
+        <div className="flex h-full w-full flex-col lg:w-[420px]">
+          {/* Header */}
+          <header className="flex items-center gap-3 border-b border-slate-100/80 px-5 py-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-300/40">
+              <Navigation className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="truncate text-base font-semibold leading-tight">Rota Planlayıcı</h1>
+              <p className="truncate text-xs text-slate-500">Çok duraklı rotanızı planlayın</p>
+            </div>
+          </header>
 
-        {/* Scrollable controls */}
-        <div className="flex-1 overflow-y-auto px-5 py-4">
-          {/* Metrics */}
-          <div className="grid grid-cols-2 gap-3">
-            <MetricCard
-              icon={<RouteIcon className="h-4 w-4" />}
-              label="Toplam Mesafe"
-              value={metrics ? `${metrics.distanceKm.toFixed(1)} km` : "—"}
-              accent="blue"
-            />
-            <MetricCard
-              icon={<Clock className="h-4 w-4" />}
-              label="Toplam Süre"
-              value={metrics ? formatDuration(metrics.durationMin) : "—"}
-              accent="indigo"
-            />
-          </div>
-
-          {/* Stops */}
-          <div className="mt-5">
-            <div className="mb-2 flex items-center justify-between">
-              <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Duraklar
-              </h2>
-              <span className="text-xs text-slate-400">{stops.length} nokta</span>
+          {/* Scrollable controls */}
+          <div className="flex-1 overflow-y-auto px-5 py-4">
+            {/* Metrics */}
+            <div className="grid grid-cols-2 gap-3">
+              <MetricCard
+                icon={<RouteIcon className="h-4 w-4" />}
+                label="Toplam Mesafe"
+                value={metrics ? `${metrics.distanceKm.toFixed(1)} km` : "—"}
+                accent="blue"
+              />
+              <MetricCard
+                icon={<Clock className="h-4 w-4" />}
+                label="Toplam Süre"
+                value={metrics ? formatDuration(metrics.durationMin) : "—"}
+                accent="indigo"
+              />
             </div>
 
-            <div className="space-y-2.5">
-              {stops.map((stop, i) => (
-                <StopRow
-                  key={stop.id}
-                  index={i}
-                  total={stops.length}
-                  stop={stop}
-                  canRemove={stops.length > 2}
-                  mapReady={mapReady}
-                  onChange={(patch) => updateStop(stop.id, patch)}
-                  onRemove={() => removeStop(stop.id)}
-                />
-              ))}
+            {/* Stops */}
+            <div className="mt-5">
+              <div className="mb-2 flex items-center justify-between">
+                <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Duraklar
+                </h2>
+                <span className="text-xs text-slate-400">{stops.length} nokta</span>
+              </div>
+
+              <div className="space-y-2.5">
+                {stops.map((stop, i) => (
+                  <StopRow
+                    key={stop.id}
+                    index={i}
+                    total={stops.length}
+                    stop={stop}
+                    canRemove={stops.length > 2}
+                    mapReady={mapReady}
+                    isDragging={dragId === stop.id}
+                    isDragOver={dragOverId === stop.id && dragId !== stop.id}
+                    onChange={(patch) => updateStop(stop.id, patch)}
+                    onRemove={() => removeStop(stop.id)}
+                    onDragStart={() => onDragStart(stop.id)}
+                    onDragOver={(e) => onDragOver(stop.id, e)}
+                    onDrop={() => onDrop(stop.id)}
+                    onDragEnd={onDragEnd}
+                  />
+                ))}
+              </div>
+
+              <button
+                onClick={addStop}
+                className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 bg-white/50 px-3 py-2.5 text-sm font-medium text-slate-600 transition hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700"
+              >
+                <Plus className="h-4 w-4" /> Durak Ekle
+              </button>
             </div>
 
+            {statusMsg && (
+              <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                {statusMsg}
+              </div>
+            )}
+          </div>
+
+          {/* Sticky CTA */}
+          <div className="border-t border-slate-100/80 bg-white/60 p-4 backdrop-blur">
             <button
-              onClick={addStop}
-              className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 px-3 py-2.5 text-sm font-medium text-slate-600 transition hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700"
+              onClick={calculate}
+              disabled={!mapReady || calculating}
+              className="group flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-md shadow-blue-300/40 transition hover:shadow-lg hover:shadow-blue-400/50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
             >
-              <Plus className="h-4 w-4" /> Durak Ekle
+              {calculating ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" /> Hesaplanıyor...
+                </>
+              ) : (
+                <>
+                  <Navigation className="h-4 w-4 transition group-hover:translate-x-0.5" />
+                  Rotayı Hesapla
+                </>
+              )}
             </button>
           </div>
-
-          {statusMsg && (
-            <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              {statusMsg}
-            </div>
-          )}
-        </div>
-
-        {/* Sticky CTA */}
-        <div className="border-t border-slate-100 bg-white p-4">
-          <button
-            onClick={calculate}
-            disabled={!mapReady || calculating}
-            className="group flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-md shadow-blue-200 transition hover:shadow-lg hover:shadow-blue-300 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
-          >
-            {calculating ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" /> Hesaplanıyor...
-              </>
-            ) : (
-              <>
-                <Navigation className="h-4 w-4 transition group-hover:translate-x-0.5" />
-                Rotayı Hesapla
-              </>
-            )}
-          </button>
         </div>
       </aside>
 
@@ -290,6 +346,15 @@ function RoutePlanner() {
             </div>
           </div>
         )}
+
+        {/* Floating sidebar toggle */}
+        <button
+          onClick={() => setSidebarOpen((v) => !v)}
+          aria-label={sidebarOpen ? "Paneli gizle" : "Paneli göster"}
+          className="absolute left-3 top-3 z-10 hidden h-10 w-10 items-center justify-center rounded-full border border-slate-200/70 bg-white/90 text-slate-700 shadow-lg shadow-slate-900/10 backdrop-blur transition hover:bg-white hover:text-blue-600 lg:flex"
+        >
+          {sidebarOpen ? <ChevronLeft className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
+        </button>
       </section>
     </div>
   );
@@ -306,12 +371,18 @@ function MetricCard({
   value: string;
   accent: "blue" | "indigo";
 }) {
+  const gradient =
+    accent === "blue"
+      ? "from-blue-500/10 via-blue-500/5 to-transparent"
+      : "from-indigo-500/10 via-indigo-500/5 to-transparent";
   const tone =
     accent === "blue"
-      ? "text-blue-600 bg-blue-50"
-      : "text-indigo-600 bg-indigo-50";
+      ? "text-blue-600 bg-blue-100/80"
+      : "text-indigo-600 bg-indigo-100/80";
   return (
-    <div className="group rounded-xl border border-slate-200 bg-white p-3 transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-sm">
+    <div
+      className={`group relative overflow-hidden rounded-xl border border-slate-200/70 bg-gradient-to-br ${gradient} bg-white/70 p-3 shadow-sm backdrop-blur transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md`}
+    >
       <div className="flex items-center gap-2">
         <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${tone}`}>{icon}</span>
         <span className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
@@ -329,19 +400,32 @@ function StopRow({
   stop,
   canRemove,
   mapReady,
+  isDragging,
+  isDragOver,
   onChange,
   onRemove,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
 }: {
   index: number;
   total: number;
   stop: Stop;
   canRemove: boolean;
   mapReady: boolean;
+  isDragging: boolean;
+  isDragOver: boolean;
   onChange: (patch: Partial<Stop>) => void;
   onRemove: () => void;
+  onDragStart: () => void;
+  onDragOver: (e: React.DragEvent) => void;
+  onDrop: () => void;
+  onDragEnd: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const acRef = useRef<any>(null);
+  const [draggable, setDraggable] = useState(false);
 
   useEffect(() => {
     if (!mapReady || !inputRef.current || acRef.current || !window.google?.maps?.places) return;
@@ -371,10 +455,36 @@ function StopRow({
       : "bg-blue-100 text-blue-700";
 
   return (
-    <div className="group rounded-xl border border-slate-200 bg-white p-3 transition hover:border-slate-300 hover:shadow-sm">
+    <div
+      draggable={draggable}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      onDragEnd={() => {
+        setDraggable(false);
+        onDragEnd();
+      }}
+      className={`group rounded-xl border bg-white/80 p-3 backdrop-blur transition ${
+        isDragging
+          ? "border-blue-400 opacity-50"
+          : isDragOver
+            ? "border-blue-400 ring-2 ring-blue-200"
+            : "border-slate-200/80 hover:border-slate-300 hover:shadow-sm"
+      }`}
+    >
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <GripVertical className="h-3.5 w-3.5 text-slate-300" />
+          <button
+            type="button"
+            onMouseDown={() => setDraggable(true)}
+            onMouseUp={() => setDraggable(false)}
+            onTouchStart={() => setDraggable(true)}
+            onTouchEnd={() => setDraggable(false)}
+            aria-label="Sürükle"
+            className="cursor-grab touch-none rounded p-0.5 text-slate-300 transition hover:text-slate-500 active:cursor-grabbing"
+          >
+            <GripVertical className="h-4 w-4" />
+          </button>
           <span
             className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold ${badgeTone}`}
           >
@@ -402,7 +512,7 @@ function StopRow({
             value={stop.address}
             onChange={(e) => onChange({ address: e.target.value })}
             placeholder="Adres girin..."
-            className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-8 pr-2 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
+            className="w-full rounded-lg border border-slate-200 bg-slate-50/70 py-2 pl-8 pr-2 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
           />
         </div>
         <div className="relative">
@@ -411,7 +521,7 @@ function StopRow({
             type="datetime-local"
             value={stop.datetime}
             onChange={(e) => onChange({ datetime: e.target.value })}
-            className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-8 pr-2 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
+            className="w-full rounded-lg border border-slate-200 bg-slate-50/70 py-2 pl-8 pr-2 text-sm text-slate-700 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-60 [&::-webkit-calendar-picker-indicator]:hover:opacity-100"
           />
         </div>
       </div>
