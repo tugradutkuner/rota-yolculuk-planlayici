@@ -1,11 +1,21 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { MapPin, Plus, Trash2, Calendar, Route as RouteIcon, Clock, Navigation, Loader2 } from "lucide-react";
+import {
+  MapPin,
+  Plus,
+  Trash2,
+  Calendar,
+  Route as RouteIcon,
+  Clock,
+  Navigation,
+  Loader2,
+  GripVertical,
+} from "lucide-react";
 
 // ============================================================================
 // GOOGLE MAPS API KEY — Buraya kendi Google Maps API anahtarınızı yapıştırın
 // ============================================================================
-const GOOGLE_MAPS_API_KEY = "YOUR_GOOGLE_MAPS_API_KEY_HERE";
+const GOOGLE_MAPS_API_KEY = "YOUR_API_KEY_HERE";
 const GOOGLE_MAPS_LIBRARIES = "places,geometry";
 // ============================================================================
 
@@ -44,13 +54,13 @@ function loadGoogleMaps(): Promise<void> {
   if (window.google?.maps) return Promise.resolve();
   if (mapsLoaderPromise) return mapsLoaderPromise;
   mapsLoaderPromise = new Promise((resolve, reject) => {
-    if (!GOOGLE_MAPS_API_KEY || GOOGLE_MAPS_API_KEY.includes("YOUR_GOOGLE_MAPS_API_KEY")) {
+    if (!GOOGLE_MAPS_API_KEY || GOOGLE_MAPS_API_KEY.includes("YOUR_API_KEY")) {
       reject(new Error("API_KEY_MISSING"));
       return;
     }
     window.initGMaps = () => resolve();
     const s = document.createElement("script");
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=${GOOGLE_MAPS_LIBRARIES}&language=tr&callback=initGMaps&loading=async`;
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=${GOOGLE_MAPS_LIBRARIES}&language=tr&region=TR&callback=initGMaps&loading=async`;
     s.async = true;
     s.defer = true;
     s.onerror = () => reject(new Error("LOAD_ERROR"));
@@ -68,6 +78,7 @@ function RoutePlanner() {
   const [calculating, setCalculating] = useState(false);
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
+  const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
   const mapDivRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
@@ -85,17 +96,27 @@ function RoutePlanner() {
           disableDefaultUI: false,
           mapTypeControl: false,
           streetViewControl: false,
+          fullscreenControl: false,
+          styles: [
+            { featureType: "poi", stylers: [{ visibility: "simplified" }] },
+            { featureType: "transit", stylers: [{ visibility: "off" }] },
+          ],
         });
         rendererRef.current = new g.maps.DirectionsRenderer({
           map: mapRef.current,
-          polylineOptions: { strokeColor: "#2563eb", strokeWeight: 5, strokeOpacity: 0.85 },
+          suppressMarkers: false,
+          polylineOptions: {
+            strokeColor: "#2563eb",
+            strokeWeight: 6,
+            strokeOpacity: 0.9,
+          },
         });
         setMapReady(true);
       })
       .catch((e) => {
         setMapError(
           e.message === "API_KEY_MISSING"
-            ? "Google Maps API anahtarı tanımlanmamış. Lütfen kod içindeki GOOGLE_MAPS_API_KEY sabitini güncelleyin."
+            ? "Google Maps API anahtarı tanımlanmamış. Lütfen src/routes/index.tsx içindeki GOOGLE_MAPS_API_KEY sabitini güncelleyin."
             : "Google Haritalar yüklenemedi. API anahtarınızı kontrol edin.",
         );
       });
@@ -111,10 +132,11 @@ function RoutePlanner() {
     setStops((s) => s.map((x) => (x.id === id ? { ...x, ...patch } : x)));
 
   const calculate = () => {
+    setStatusMsg(null);
     if (!mapReady || !window.google) return;
     const filled = stops.filter((s) => s.address.trim().length > 0);
     if (filled.length < 2) {
-      alert("Lütfen en az iki durak girin.");
+      setStatusMsg("Lütfen en az iki durak girin.");
       return;
     }
     setCalculating(true);
@@ -136,7 +158,7 @@ function RoutePlanner() {
       (result: any, status: string) => {
         setCalculating(false);
         if (status !== "OK" || !result) {
-          alert("Rota hesaplanamadı: " + status);
+          setStatusMsg("Rota hesaplanamadı: " + status);
           return;
         }
         rendererRef.current?.setDirections(result);
@@ -158,57 +180,53 @@ function RoutePlanner() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
-      <header className="border-b bg-white">
-        <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-4">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600 text-white">
+    <div className="flex h-screen flex-col bg-slate-50 text-slate-900 lg:flex-row">
+      {/* Sidebar */}
+      <aside className="flex w-full flex-col border-b border-slate-200 bg-white lg:h-screen lg:w-[420px] lg:border-b-0 lg:border-r">
+        {/* Header */}
+        <header className="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-sm shadow-blue-200">
             <Navigation className="h-5 w-5" />
           </div>
-          <div>
-            <h1 className="text-lg font-semibold leading-tight">Rota Planlayıcı</h1>
-            <p className="text-xs text-slate-500">Çok duraklı rotanızı kolayca planlayın</p>
+          <div className="min-w-0">
+            <h1 className="truncate text-base font-semibold leading-tight">Rota Planlayıcı</h1>
+            <p className="truncate text-xs text-slate-500">Çok duraklı rotanızı planlayın</p>
           </div>
-        </div>
-      </header>
+        </header>
 
-      <main className="mx-auto grid max-w-7xl gap-4 px-4 py-4 lg:grid-cols-[420px_1fr]">
-        {/* Control Panel */}
-        <section className="flex flex-col gap-4">
+        {/* Scrollable controls */}
+        <div className="flex-1 overflow-y-auto px-5 py-4">
           {/* Metrics */}
-          <div className="rounded-xl border bg-white p-4 shadow-sm">
-            <h2 className="mb-3 text-sm font-semibold text-slate-700">Özet</h2>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-lg bg-slate-50 p-3">
-                <div className="flex items-center gap-2 text-xs text-slate-500">
-                  <RouteIcon className="h-3.5 w-3.5" /> Toplam Mesafe
-                </div>
-                <div className="mt-1 text-xl font-semibold">
-                  {metrics ? `${metrics.distanceKm.toFixed(1)} km` : "—"}
-                </div>
-              </div>
-              <div className="rounded-lg bg-slate-50 p-3">
-                <div className="flex items-center gap-2 text-xs text-slate-500">
-                  <Clock className="h-3.5 w-3.5" /> Toplam Süre
-                </div>
-                <div className="mt-1 text-xl font-semibold">
-                  {metrics ? formatDuration(metrics.durationMin) : "—"}
-                </div>
-              </div>
-            </div>
+          <div className="grid grid-cols-2 gap-3">
+            <MetricCard
+              icon={<RouteIcon className="h-4 w-4" />}
+              label="Toplam Mesafe"
+              value={metrics ? `${metrics.distanceKm.toFixed(1)} km` : "—"}
+              accent="blue"
+            />
+            <MetricCard
+              icon={<Clock className="h-4 w-4" />}
+              label="Toplam Süre"
+              value={metrics ? formatDuration(metrics.durationMin) : "—"}
+              accent="indigo"
+            />
           </div>
 
           {/* Stops */}
-          <div className="rounded-xl border bg-white p-4 shadow-sm">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-slate-700">Duraklar</h2>
-              <span className="text-xs text-slate-500">{stops.length} durak</span>
+          <div className="mt-5">
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Duraklar
+              </h2>
+              <span className="text-xs text-slate-400">{stops.length} nokta</span>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               {stops.map((stop, i) => (
                 <StopRow
                   key={stop.id}
                   index={i}
+                  total={stops.length}
                   stop={stop}
                   canRemove={stops.length > 2}
                   mapReady={mapReady}
@@ -220,55 +238,94 @@ function RoutePlanner() {
 
             <button
               onClick={addStop}
-              className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 transition hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700"
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 px-3 py-2.5 text-sm font-medium text-slate-600 transition hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700"
             >
               <Plus className="h-4 w-4" /> Durak Ekle
             </button>
-
-            <button
-              onClick={calculate}
-              disabled={!mapReady || calculating}
-              className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {calculating ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" /> Hesaplanıyor...
-                </>
-              ) : (
-                <>
-                  <Navigation className="h-4 w-4" /> Rotayı Hesapla
-                </>
-              )}
-            </button>
           </div>
-        </section>
 
-        {/* Map */}
-        <section className="relative min-h-[400px] overflow-hidden rounded-xl border bg-white shadow-sm lg:min-h-[600px]">
-          <div ref={mapDivRef} className="absolute inset-0" />
-          {!mapReady && !mapError && (
-            <div className="absolute inset-0 flex items-center justify-center bg-slate-50 text-sm text-slate-500">
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Harita yükleniyor...
+          {statusMsg && (
+            <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              {statusMsg}
             </div>
           )}
-          {mapError && (
-            <div className="absolute inset-0 flex items-center justify-center p-6 text-center">
-              <div className="max-w-sm">
-                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-600">
-                  <MapPin className="h-6 w-6" />
-                </div>
-                <p className="text-sm text-slate-600">{mapError}</p>
+        </div>
+
+        {/* Sticky CTA */}
+        <div className="border-t border-slate-100 bg-white p-4">
+          <button
+            onClick={calculate}
+            disabled={!mapReady || calculating}
+            className="group flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-md shadow-blue-200 transition hover:shadow-lg hover:shadow-blue-300 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+          >
+            {calculating ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" /> Hesaplanıyor...
+              </>
+            ) : (
+              <>
+                <Navigation className="h-4 w-4 transition group-hover:translate-x-0.5" />
+                Rotayı Hesapla
+              </>
+            )}
+          </button>
+        </div>
+      </aside>
+
+      {/* Map */}
+      <section className="relative flex-1 min-h-[50vh] lg:min-h-0">
+        <div ref={mapDivRef} className="absolute inset-0 h-full w-full" />
+        {!mapReady && !mapError && (
+          <div className="absolute inset-0 flex items-center justify-center bg-slate-100 text-sm text-slate-500">
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Harita yükleniyor...
+          </div>
+        )}
+        {mapError && (
+          <div className="absolute inset-0 flex items-center justify-center bg-slate-100 p-6 text-center">
+            <div className="max-w-sm">
+              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+                <MapPin className="h-6 w-6" />
               </div>
+              <p className="text-sm text-slate-600">{mapError}</p>
             </div>
-          )}
-        </section>
-      </main>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function MetricCard({
+  icon,
+  label,
+  value,
+  accent,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  accent: "blue" | "indigo";
+}) {
+  const tone =
+    accent === "blue"
+      ? "text-blue-600 bg-blue-50"
+      : "text-indigo-600 bg-indigo-50";
+  return (
+    <div className="group rounded-xl border border-slate-200 bg-white p-3 transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-sm">
+      <div className="flex items-center gap-2">
+        <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${tone}`}>{icon}</span>
+        <span className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+          {label}
+        </span>
+      </div>
+      <div className="mt-2 text-xl font-semibold tabular-nums text-slate-900">{value}</div>
     </div>
   );
 }
 
 function StopRow({
   index,
+  total,
   stop,
   canRemove,
   mapReady,
@@ -276,6 +333,7 @@ function StopRow({
   onRemove,
 }: {
   index: number;
+  total: number;
   stop: Stop;
   canRemove: boolean;
   mapReady: boolean;
@@ -303,13 +361,23 @@ function StopRow({
     acRef.current = ac;
   }, [mapReady, onChange]);
 
-  const label = index === 0 ? "Başlangıç" : `Durak ${index + 1}`;
+  const isStart = index === 0;
+  const isEnd = index === total - 1;
+  const label = isStart ? "Başlangıç" : isEnd ? "Varış" : `Durak ${index}`;
+  const badgeTone = isStart
+    ? "bg-emerald-100 text-emerald-700"
+    : isEnd
+      ? "bg-rose-100 text-rose-700"
+      : "bg-blue-100 text-blue-700";
 
   return (
-    <div className="rounded-lg border border-slate-200 p-3">
+    <div className="group rounded-xl border border-slate-200 bg-white p-3 transition hover:border-slate-300 hover:shadow-sm">
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700">
+          <GripVertical className="h-3.5 w-3.5 text-slate-300" />
+          <span
+            className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold ${badgeTone}`}
+          >
             {index + 1}
           </span>
           <span className="text-xs font-medium text-slate-600">{label}</span>
@@ -317,7 +385,7 @@ function StopRow({
         {canRemove && (
           <button
             onClick={onRemove}
-            className="rounded p-1 text-slate-400 transition hover:bg-red-50 hover:text-red-600"
+            className="rounded-md p-1 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
             aria-label="Durağı sil"
           >
             <Trash2 className="h-4 w-4" />
@@ -334,7 +402,7 @@ function StopRow({
             value={stop.address}
             onChange={(e) => onChange({ address: e.target.value })}
             placeholder="Adres girin..."
-            className="w-full rounded-md border border-slate-200 bg-white py-2 pl-8 pr-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-8 pr-2 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
           />
         </div>
         <div className="relative">
@@ -343,7 +411,7 @@ function StopRow({
             type="datetime-local"
             value={stop.datetime}
             onChange={(e) => onChange({ datetime: e.target.value })}
-            className="w-full rounded-md border border-slate-200 bg-white py-2 pl-8 pr-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-8 pr-2 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
           />
         </div>
       </div>
