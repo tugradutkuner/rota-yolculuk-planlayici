@@ -15,7 +15,7 @@ import {
 // ============================================================================
 // GOOGLE MAPS API KEY — Buraya kendi Google Maps API anahtarınızı yapıştırın
 // ============================================================================
-const GOOGLE_MAPS_API_KEY = "YOUR_API_KEY_HERE";
+const GOOGLE_MAPS_API_KEY = "AIzaSyC1Wp8TBZcVcwKikraqgslNwGcTogjgPYk";
 const GOOGLE_MAPS_LIBRARIES = "places,geometry";
 // ============================================================================
 
