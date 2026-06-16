@@ -14,6 +14,8 @@ import {
   ChevronRight,
   FileText,
   Timer,
+  Sparkles,
+  ChevronDown,
 } from "lucide-react";
 
 // ============================================================================
@@ -21,6 +23,12 @@ import {
 // ============================================================================
 const GOOGLE_MAPS_API_KEY = "AIzaSyC1Wp8TBZcVcwKikraqgslNwGcTogjgPYk";
 const GOOGLE_MAPS_LIBRARIES = "places,geometry";
+
+// ============================================================================
+// GEMINI API KEY — Buraya kendi Google Gemini API anahtarınızı yapıştırın
+// ============================================================================
+const GEMINI_API_KEY = "YOUR_GEMINI_KEY_HERE";
+const GEMINI_MODEL = "gemini-2.0-flash";
 // ============================================================================
 
 export const Route = createFileRoute("/")({
@@ -99,6 +107,10 @@ function RoutePlanner() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiText, setAiText] = useState<string | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   const mapDivRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
@@ -306,6 +318,44 @@ function RoutePlanner() {
     return h > 0 ? `${h} sa ${m} dk` : `${m} dk`;
   };
 
+  const generateAdvice = async () => {
+    const list = stops.map((s) => s.address.trim()).filter(Boolean);
+    if (list.length < 2) {
+      setAiError("Lütfen en az iki durak girin.");
+      setAiText(null);
+      return;
+    }
+    if (!GEMINI_API_KEY || GEMINI_API_KEY.includes("YOUR_GEMINI_KEY")) {
+      setAiError("Gemini API anahtarı tanımlanmamış. src/routes/index.tsx içindeki GEMINI_API_KEY sabitini güncelleyin.");
+      setAiText(null);
+      return;
+    }
+    setAiLoading(true);
+    setAiError(null);
+    setAiText(null);
+    const prompt = `Aşağıdaki rotada seyahat edeceğim. Bana bu şehirlerde mutlaka yapılması gerekenler, gizli kalmış lezzet durakları ve yolculuk için pratik tavsiyeler içeren kısa, Türkçe bir rehber hazırla: ${list.join(" → ")}`;
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+        },
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const text = data?.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join("\n").trim();
+      if (!text) throw new Error("Boş yanıt");
+      setAiText(text);
+    } catch (e: any) {
+      setAiError("Tavsiyeler alınamadı: " + (e?.message ?? "bilinmeyen hata"));
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+
   return (
     <div className="relative flex h-screen flex-col bg-gradient-to-br from-slate-100 via-blue-50 to-indigo-100 text-slate-900 lg:flex-row">
       <aside
@@ -385,7 +435,51 @@ function RoutePlanner() {
                 {statusMsg}
               </div>
             )}
+
+            <div className="mt-5 overflow-hidden rounded-xl border border-violet-200/70 bg-gradient-to-br from-violet-50 via-fuchsia-50 to-transparent">
+              <button
+                type="button"
+                onClick={() => setAiOpen((v) => !v)}
+                className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-semibold text-violet-800 transition hover:bg-violet-100/40"
+              >
+                <Sparkles className="h-4 w-4 text-violet-600" />
+                <span className="flex-1">🤖 Yapay Zeka Rota Tavsiyeleri</span>
+                <ChevronDown
+                  className={`h-4 w-4 text-violet-500 transition-transform ${aiOpen ? "rotate-180" : ""}`}
+                />
+              </button>
+              {aiOpen && (
+                <div className="space-y-3 border-t border-violet-200/60 bg-white/60 p-3 backdrop-blur">
+                  <button
+                    onClick={generateAdvice}
+                    disabled={aiLoading}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-br from-violet-600 to-fuchsia-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {aiLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" /> Oluşturuluyor...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4" /> Tavsiyeleri Oluştur
+                      </>
+                    )}
+                  </button>
+                  {aiError && (
+                    <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                      {aiError}
+                    </div>
+                  )}
+                  {aiText && (
+                    <div className="max-h-72 overflow-y-auto rounded-lg border border-violet-100 bg-white/80 p-3 text-[13px] leading-relaxed text-slate-700">
+                      <MiniMarkdown text={aiText} />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
+
 
           <div className="border-t border-slate-100/80 bg-white/60 p-4 backdrop-blur">
             <button
@@ -660,4 +754,71 @@ function StopRow({
       </div>
     </div>
   );
+}
+
+function MiniMarkdown({ text }: { text: string }) {
+  const renderInline = (s: string, keyPrefix: string) => {
+    const parts: React.ReactNode[] = [];
+    const regex = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g;
+    let last = 0;
+    let m: RegExpExecArray | null;
+    let i = 0;
+    while ((m = regex.exec(s)) !== null) {
+      if (m.index > last) parts.push(s.slice(last, m.index));
+      const tok = m[0];
+      if (tok.startsWith("**"))
+        parts.push(<strong key={`${keyPrefix}-${i}`} className="font-semibold text-slate-900">{tok.slice(2, -2)}</strong>);
+      else if (tok.startsWith("`"))
+        parts.push(<code key={`${keyPrefix}-${i}`} className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[12px]">{tok.slice(1, -1)}</code>);
+      else
+        parts.push(<em key={`${keyPrefix}-${i}`}>{tok.slice(1, -1)}</em>);
+      last = m.index + tok.length;
+      i++;
+    }
+    if (last < s.length) parts.push(s.slice(last));
+    return parts;
+  };
+
+  const lines = text.split("\n");
+  const out: React.ReactNode[] = [];
+  let list: string[] = [];
+  const flushList = (key: string) => {
+    if (!list.length) return;
+    out.push(
+      <ul key={key} className="my-2 list-disc space-y-1 pl-5">
+        {list.map((it, i) => (
+          <li key={i}>{renderInline(it, `${key}-${i}`)}</li>
+        ))}
+      </ul>,
+    );
+    list = [];
+  };
+  lines.forEach((raw, idx) => {
+    const line = raw.trim();
+    if (!line) {
+      flushList(`l-${idx}`);
+      return;
+    }
+    const bullet = line.match(/^(?:[-*•]|\d+\.)\s+(.*)$/);
+    if (bullet) {
+      list.push(bullet[1]);
+      return;
+    }
+    flushList(`l-${idx}`);
+    const h = line.match(/^(#{1,3})\s+(.*)$/);
+    if (h) {
+      const lvl = h[1].length;
+      const cls =
+        lvl === 1
+          ? "mt-3 mb-1 text-base font-bold text-slate-900"
+          : lvl === 2
+            ? "mt-3 mb-1 text-sm font-bold text-slate-900"
+            : "mt-2 mb-1 text-sm font-semibold text-slate-800";
+      out.push(<p key={idx} className={cls}>{renderInline(h[2], `h-${idx}`)}</p>);
+    } else {
+      out.push(<p key={idx} className="my-1.5">{renderInline(line, `p-${idx}`)}</p>);
+    }
+  });
+  flushList("l-end");
+  return <div>{out}</div>;
 }
