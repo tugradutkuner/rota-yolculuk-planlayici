@@ -755,3 +755,70 @@ function StopRow({
     </div>
   );
 }
+
+function MiniMarkdown({ text }: { text: string }) {
+  const renderInline = (s: string, keyPrefix: string) => {
+    const parts: React.ReactNode[] = [];
+    const regex = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g;
+    let last = 0;
+    let m: RegExpExecArray | null;
+    let i = 0;
+    while ((m = regex.exec(s)) !== null) {
+      if (m.index > last) parts.push(s.slice(last, m.index));
+      const tok = m[0];
+      if (tok.startsWith("**"))
+        parts.push(<strong key={`${keyPrefix}-${i}`} className="font-semibold text-slate-900">{tok.slice(2, -2)}</strong>);
+      else if (tok.startsWith("`"))
+        parts.push(<code key={`${keyPrefix}-${i}`} className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[12px]">{tok.slice(1, -1)}</code>);
+      else
+        parts.push(<em key={`${keyPrefix}-${i}`}>{tok.slice(1, -1)}</em>);
+      last = m.index + tok.length;
+      i++;
+    }
+    if (last < s.length) parts.push(s.slice(last));
+    return parts;
+  };
+
+  const lines = text.split("\n");
+  const out: React.ReactNode[] = [];
+  let list: string[] = [];
+  const flushList = (key: string) => {
+    if (!list.length) return;
+    out.push(
+      <ul key={key} className="my-2 list-disc space-y-1 pl-5">
+        {list.map((it, i) => (
+          <li key={i}>{renderInline(it, `${key}-${i}`)}</li>
+        ))}
+      </ul>,
+    );
+    list = [];
+  };
+  lines.forEach((raw, idx) => {
+    const line = raw.trim();
+    if (!line) {
+      flushList(`l-${idx}`);
+      return;
+    }
+    const bullet = line.match(/^(?:[-*•]|\d+\.)\s+(.*)$/);
+    if (bullet) {
+      list.push(bullet[1]);
+      return;
+    }
+    flushList(`l-${idx}`);
+    const h = line.match(/^(#{1,3})\s+(.*)$/);
+    if (h) {
+      const lvl = h[1].length;
+      const cls =
+        lvl === 1
+          ? "mt-3 mb-1 text-base font-bold text-slate-900"
+          : lvl === 2
+            ? "mt-3 mb-1 text-sm font-bold text-slate-900"
+            : "mt-2 mb-1 text-sm font-semibold text-slate-800";
+      out.push(<p key={idx} className={cls}>{renderInline(h[2], `h-${idx}`)}</p>);
+    } else {
+      out.push(<p key={idx} className="my-1.5">{renderInline(line, `p-${idx}`)}</p>);
+    }
+  });
+  flushList("l-end");
+  return <div>{out}</div>;
+}
