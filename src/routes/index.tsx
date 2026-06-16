@@ -318,6 +318,44 @@ function RoutePlanner() {
     return h > 0 ? `${h} sa ${m} dk` : `${m} dk`;
   };
 
+  const generateAdvice = async () => {
+    const list = stops.map((s) => s.address.trim()).filter(Boolean);
+    if (list.length < 2) {
+      setAiError("Lütfen en az iki durak girin.");
+      setAiText(null);
+      return;
+    }
+    if (!GEMINI_API_KEY || GEMINI_API_KEY.includes("YOUR_GEMINI_KEY")) {
+      setAiError("Gemini API anahtarı tanımlanmamış. src/routes/index.tsx içindeki GEMINI_API_KEY sabitini güncelleyin.");
+      setAiText(null);
+      return;
+    }
+    setAiLoading(true);
+    setAiError(null);
+    setAiText(null);
+    const prompt = `Aşağıdaki rotada seyahat edeceğim. Bana bu şehirlerde mutlaka yapılması gerekenler, gizli kalmış lezzet durakları ve yolculuk için pratik tavsiyeler içeren kısa, Türkçe bir rehber hazırla: ${list.join(" → ")}`;
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+        },
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const text = data?.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join("\n").trim();
+      if (!text) throw new Error("Boş yanıt");
+      setAiText(text);
+    } catch (e: any) {
+      setAiError("Tavsiyeler alınamadı: " + (e?.message ?? "bilinmeyen hata"));
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+
   return (
     <div className="relative flex h-screen flex-col bg-gradient-to-br from-slate-100 via-blue-50 to-indigo-100 text-slate-900 lg:flex-row">
       <aside
