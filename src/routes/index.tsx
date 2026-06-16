@@ -435,7 +435,51 @@ function RoutePlanner() {
                 {statusMsg}
               </div>
             )}
+
+            <div className="mt-5 overflow-hidden rounded-xl border border-violet-200/70 bg-gradient-to-br from-violet-50 via-fuchsia-50 to-transparent">
+              <button
+                type="button"
+                onClick={() => setAiOpen((v) => !v)}
+                className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-semibold text-violet-800 transition hover:bg-violet-100/40"
+              >
+                <Sparkles className="h-4 w-4 text-violet-600" />
+                <span className="flex-1">🤖 Yapay Zeka Rota Tavsiyeleri</span>
+                <ChevronDown
+                  className={`h-4 w-4 text-violet-500 transition-transform ${aiOpen ? "rotate-180" : ""}`}
+                />
+              </button>
+              {aiOpen && (
+                <div className="space-y-3 border-t border-violet-200/60 bg-white/60 p-3 backdrop-blur">
+                  <button
+                    onClick={generateAdvice}
+                    disabled={aiLoading}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-br from-violet-600 to-fuchsia-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {aiLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" /> Oluşturuluyor...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4" /> Tavsiyeleri Oluştur
+                      </>
+                    )}
+                  </button>
+                  {aiError && (
+                    <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                      {aiError}
+                    </div>
+                  )}
+                  {aiText && (
+                    <div className="max-h-72 overflow-y-auto rounded-lg border border-violet-100 bg-white/80 p-3 text-[13px] leading-relaxed text-slate-700">
+                      <MiniMarkdown text={aiText} />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
+
 
           <div className="border-t border-slate-100/80 bg-white/60 p-4 backdrop-blur">
             <button
