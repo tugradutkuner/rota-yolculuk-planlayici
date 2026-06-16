@@ -88,6 +88,8 @@ function RoutePlanner() {
   const mapDivRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const rendererRef = useRef<any>(null);
+  const altPolylinesRef = useRef<any[]>([]);
+  const lastResultRef = useRef<any>(null);
 
   useEffect(() => {
     let cancelled = false;
