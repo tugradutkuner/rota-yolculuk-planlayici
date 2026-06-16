@@ -23,6 +23,12 @@ import {
 // ============================================================================
 const GOOGLE_MAPS_API_KEY = "AIzaSyC1Wp8TBZcVcwKikraqgslNwGcTogjgPYk";
 const GOOGLE_MAPS_LIBRARIES = "places,geometry";
+
+// ============================================================================
+// GEMINI API KEY — Buraya kendi Google Gemini API anahtarınızı yapıştırın
+// ============================================================================
+const GEMINI_API_KEY = "YOUR_GEMINI_KEY_HERE";
+const GEMINI_MODEL = "gemini-2.0-flash";
 // ============================================================================
 
 export const Route = createFileRoute("/")({
