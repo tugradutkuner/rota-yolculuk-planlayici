@@ -88,6 +88,8 @@ function RoutePlanner() {
   const mapDivRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const rendererRef = useRef<any>(null);
+  const altPolylinesRef = useRef<any[]>([]);
+  const lastResultRef = useRef<any>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -196,6 +198,7 @@ function RoutePlanner() {
         destination,
         waypoints,
         travelMode: g.maps.TravelMode.DRIVING,
+        provideRouteAlternatives: true,
       },
       (result: any, status: string) => {
         setCalculating(false);
@@ -203,15 +206,53 @@ function RoutePlanner() {
           setStatusMsg("Rota hesaplanamadı: " + status);
           return;
         }
-        rendererRef.current?.setDirections(result);
-        let dist = 0;
-        let dur = 0;
-        for (const leg of result.routes[0].legs) {
-          dist += leg.distance?.value ?? 0;
-          dur += leg.duration?.value ?? 0;
-        }
-        setMetrics({ distanceKm: dist / 1000, durationMin: Math.round(dur / 60) });
+        lastResultRef.current = result;
+        applyRoute(0);
       },
+    );
+  };
+
+  const applyRoute = (idx: number) => {
+    const result = lastResultRef.current;
+    const g = window.google;
+    if (!result || !g || !mapRef.current) return;
+
+    // Clear previous alternative polylines
+    altPolylinesRef.current.forEach((p) => p.setMap(null));
+    altPolylinesRef.current = [];
+
+    rendererRef.current?.setDirections(result);
+    rendererRef.current?.setRouteIndex(idx);
+
+    // Draw alternatives as translucent gray, clickable polylines
+    result.routes.forEach((route: any, i: number) => {
+      if (i === idx) return;
+      const poly = new g.maps.Polyline({
+        path: route.overview_path,
+        map: mapRef.current,
+        strokeColor: "#64748b",
+        strokeOpacity: 0.55,
+        strokeWeight: 5,
+        zIndex: 1,
+        clickable: true,
+      });
+      poly.addListener("mouseover", () => poly.setOptions({ strokeOpacity: 0.85, strokeWeight: 6 }));
+      poly.addListener("mouseout", () => poly.setOptions({ strokeOpacity: 0.55, strokeWeight: 5 }));
+      poly.addListener("click", () => applyRoute(i));
+      altPolylinesRef.current.push(poly);
+    });
+
+    let dist = 0;
+    let dur = 0;
+    for (const leg of result.routes[idx].legs) {
+      dist += leg.distance?.value ?? 0;
+      dur += leg.duration?.value ?? 0;
+    }
+    setMetrics({ distanceKm: dist / 1000, durationMin: Math.round(dur / 60) });
+    setStatusMsg(
+      result.routes.length > 1
+        ? `${result.routes.length} rota bulundu. Alternatifi seçmek için haritadaki gri çizgiye tıklayın. (Seçili: ${idx + 1})`
+        : null,
     );
   };
 
