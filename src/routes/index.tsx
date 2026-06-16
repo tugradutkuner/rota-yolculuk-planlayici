@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   MapPin,
   Plus,
@@ -12,6 +12,8 @@ import {
   GripVertical,
   ChevronLeft,
   ChevronRight,
+  FileText,
+  Timer,
 } from "lucide-react";
 
 // ============================================================================
@@ -34,7 +36,9 @@ export const Route = createFileRoute("/")({
 type Stop = {
   id: string;
   address: string;
-  datetime: string;
+  datetime: string; // departure time (manual input)
+  note?: string;
+  noteOpen?: boolean;
   placeId?: string;
   location?: { lat: number; lng: number };
 };
@@ -71,12 +75,23 @@ function loadGoogleMaps(): Promise<void> {
   return mapsLoaderPromise;
 }
 
+const fmtTime = (d: Date) =>
+  d.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+const fmtDateTime = (d: Date) =>
+  d.toLocaleString("tr-TR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
 function RoutePlanner() {
   const [stops, setStops] = useState<Stop[]>([
     { id: uid(), address: "", datetime: "" },
     { id: uid(), address: "", datetime: "" },
   ]);
   const [metrics, setMetrics] = useState<Metrics>(null);
+  const [legDurations, setLegDurations] = useState<number[]>([]); // seconds per leg
   const [calculating, setCalculating] = useState(false);
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
@@ -132,7 +147,6 @@ function RoutePlanner() {
     };
   }, []);
 
-  // Trigger map resize on sidebar toggle so Google Maps fills new space
   useEffect(() => {
     if (!mapRef.current || !window.google) return;
     const t = setTimeout(() => {
@@ -175,6 +189,24 @@ function RoutePlanner() {
     setDragOverId(null);
   };
 
+  // Compute ETA chain from departure times + leg durations
+  const etas = useMemo(() => {
+    const arr: (Date | null)[] = new Array(stops.length).fill(null);
+    if (!legDurations.length) return arr;
+    let cursor: Date | null = stops[0]?.datetime ? new Date(stops[0].datetime) : null;
+    for (let i = 0; i < stops.length - 1; i++) {
+      if (!cursor) break;
+      const dur = legDurations[i];
+      if (dur == null) break;
+      const arrival = new Date(cursor.getTime() + dur * 1000);
+      arr[i + 1] = arrival;
+      // Next leg departs at user-input datetime if set (>= arrival), else arrival itself
+      const nextDep = stops[i + 1]?.datetime ? new Date(stops[i + 1].datetime) : null;
+      cursor = nextDep && nextDep > arrival ? nextDep : arrival;
+    }
+    return arr;
+  }, [stops, legDurations]);
+
   const calculate = () => {
     setStatusMsg(null);
     if (!mapReady || !window.google) return;
@@ -192,6 +224,12 @@ function RoutePlanner() {
       location: s.location ?? s.address,
       stopover: true,
     }));
+
+    // Dynamic traffic via drivingOptions (requires future departureTime)
+    const depRaw = stops[0]?.datetime ? new Date(stops[0].datetime) : null;
+    const now = new Date();
+    const departureTime = depRaw && depRaw > now ? depRaw : new Date(now.getTime() + 60_000);
+
     service.route(
       {
         origin,
@@ -199,6 +237,10 @@ function RoutePlanner() {
         waypoints,
         travelMode: g.maps.TravelMode.DRIVING,
         provideRouteAlternatives: true,
+        drivingOptions: {
+          departureTime,
+          trafficModel: g.maps.TrafficModel.BEST_GUESS,
+        },
       },
       (result: any, status: string) => {
         setCalculating(false);
@@ -217,14 +259,12 @@ function RoutePlanner() {
     const g = window.google;
     if (!result || !g || !mapRef.current) return;
 
-    // Clear previous alternative polylines
     altPolylinesRef.current.forEach((p) => p.setMap(null));
     altPolylinesRef.current = [];
 
     rendererRef.current?.setDirections(result);
     rendererRef.current?.setRouteIndex(idx);
 
-    // Draw alternatives as translucent gray, clickable polylines
     result.routes.forEach((route: any, i: number) => {
       if (i === idx) return;
       const poly = new g.maps.Polyline({
@@ -244,10 +284,14 @@ function RoutePlanner() {
 
     let dist = 0;
     let dur = 0;
+    const legs: number[] = [];
     for (const leg of result.routes[idx].legs) {
       dist += leg.distance?.value ?? 0;
-      dur += leg.duration?.value ?? 0;
+      const d = leg.duration_in_traffic?.value ?? leg.duration?.value ?? 0;
+      dur += d;
+      legs.push(d);
     }
+    setLegDurations(legs);
     setMetrics({ distanceKm: dist / 1000, durationMin: Math.round(dur / 60) });
     setStatusMsg(
       result.routes.length > 1
@@ -264,7 +308,6 @@ function RoutePlanner() {
 
   return (
     <div className="relative flex h-screen flex-col bg-gradient-to-br from-slate-100 via-blue-50 to-indigo-100 text-slate-900 lg:flex-row">
-      {/* Sidebar */}
       <aside
         className={`flex flex-col overflow-hidden border-slate-200/70 bg-white/70 backdrop-blur-xl shadow-xl shadow-slate-900/5 transition-all duration-300 ease-in-out lg:h-screen lg:border-r ${
           sidebarOpen
@@ -273,7 +316,6 @@ function RoutePlanner() {
         }`}
       >
         <div className="flex h-full w-full flex-col lg:w-[420px]">
-          {/* Header */}
           <header className="flex items-center gap-3 border-b border-slate-100/80 px-5 py-4">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-300/40">
               <Navigation className="h-5 w-5" />
@@ -284,9 +326,7 @@ function RoutePlanner() {
             </div>
           </header>
 
-          {/* Scrollable controls */}
           <div className="flex-1 overflow-y-auto px-5 py-4">
-            {/* Metrics */}
             <div className="grid grid-cols-2 gap-3">
               <MetricCard
                 icon={<RouteIcon className="h-4 w-4" />}
@@ -302,7 +342,6 @@ function RoutePlanner() {
               />
             </div>
 
-            {/* Stops */}
             <div className="mt-5">
               <div className="mb-2 flex items-center justify-between">
                 <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -318,6 +357,7 @@ function RoutePlanner() {
                     index={i}
                     total={stops.length}
                     stop={stop}
+                    eta={etas[i]}
                     canRemove={stops.length > 2}
                     mapReady={mapReady}
                     isDragging={dragId === stop.id}
@@ -347,7 +387,6 @@ function RoutePlanner() {
             )}
           </div>
 
-          {/* Sticky CTA */}
           <div className="border-t border-slate-100/80 bg-white/60 p-4 backdrop-blur">
             <button
               onClick={calculate}
@@ -369,7 +408,6 @@ function RoutePlanner() {
         </div>
       </aside>
 
-      {/* Map */}
       <section className="relative flex-1 min-h-[50vh] lg:min-h-0">
         <div ref={mapDivRef} className="absolute inset-0 h-full w-full" />
         {!mapReady && !mapError && (
@@ -388,7 +426,6 @@ function RoutePlanner() {
           </div>
         )}
 
-        {/* Floating sidebar toggle */}
         <button
           onClick={() => setSidebarOpen((v) => !v)}
           aria-label={sidebarOpen ? "Paneli gizle" : "Paneli göster"}
@@ -439,6 +476,7 @@ function StopRow({
   index,
   total,
   stop,
+  eta,
   canRemove,
   mapReady,
   isDragging,
@@ -453,6 +491,7 @@ function StopRow({
   index: number;
   total: number;
   stop: Stop;
+  eta: Date | null;
   canRemove: boolean;
   mapReady: boolean;
   isDragging: boolean;
@@ -495,6 +534,14 @@ function StopRow({
       ? "bg-rose-100 text-rose-700"
       : "bg-blue-100 text-blue-700";
 
+  // Time input behaviour:
+  // - Start (index 0): manual departure time only.
+  // - End (last): show ETA badge, no manual input.
+  // - Intermediate: show ETA badge + manual "Mola Sonrası Kalkış".
+  const showEta = !isStart && eta != null;
+  const showDepartureInput = !isEnd; // start + intermediates
+  const depLabel = isStart ? "Kalkış Saati" : "Mola Sonrası Kalkış";
+
   return (
     <div
       draggable={draggable}
@@ -533,15 +580,30 @@ function StopRow({
           </span>
           <span className="text-xs font-medium text-slate-600">{label}</span>
         </div>
-        {canRemove && (
+        <div className="flex items-center gap-1">
           <button
-            onClick={onRemove}
-            className="rounded-md p-1 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
-            aria-label="Durağı sil"
+            type="button"
+            onClick={() => onChange({ noteOpen: !stop.noteOpen })}
+            aria-label="Not Ekle"
+            title="Not Ekle"
+            className={`rounded-md p-1 transition ${
+              stop.noteOpen || stop.note
+                ? "bg-amber-50 text-amber-600"
+                : "text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            }`}
           >
-            <Trash2 className="h-4 w-4" />
+            <FileText className="h-4 w-4" />
           </button>
-        )}
+          {canRemove && (
+            <button
+              onClick={onRemove}
+              className="rounded-md p-1 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
+              aria-label="Durağı sil"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="space-y-2">
@@ -556,15 +618,45 @@ function StopRow({
             className="w-full rounded-lg border border-slate-200 bg-slate-50/70 py-2 pl-8 pr-2 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
           />
         </div>
-        <div className="relative">
-          <Calendar className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input
-            type="datetime-local"
-            value={stop.datetime}
-            onChange={(e) => onChange({ datetime: e.target.value })}
-            className="w-full rounded-lg border border-slate-200 bg-slate-50/70 py-2 pl-8 pr-2 text-sm text-slate-700 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-60 [&::-webkit-calendar-picker-indicator]:hover:opacity-100"
+
+        {showEta && (
+          <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-700">
+            <Timer className="h-3.5 w-3.5" />
+            <span className="text-[11px] uppercase tracking-wide opacity-80">Tahmini Varış</span>
+            <span className="ml-auto tabular-nums">
+              {eta!.toDateString() === new Date().toDateString()
+                ? fmtTime(eta!)
+                : fmtDateTime(eta!)}
+            </span>
+          </div>
+        )}
+
+        {showDepartureInput && (
+          <div className="relative">
+            <Calendar className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              type="datetime-local"
+              value={stop.datetime}
+              onChange={(e) => onChange({ datetime: e.target.value })}
+              placeholder={depLabel}
+              aria-label={depLabel}
+              className="w-full rounded-lg border border-slate-200 bg-slate-50/70 py-2 pl-8 pr-2 text-sm text-slate-700 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-60 [&::-webkit-calendar-picker-indicator]:hover:opacity-100"
+            />
+            <span className="pointer-events-none absolute -top-1.5 left-2 rounded bg-white px-1 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+              {depLabel}
+            </span>
+          </div>
+        )}
+
+        {stop.noteOpen && (
+          <textarea
+            value={stop.note ?? ""}
+            onChange={(e) => onChange({ note: e.target.value })}
+            placeholder="Bu durağa özel notlar (otel, hatırlatma, alışveriş...)"
+            rows={2}
+            className="w-full resize-none rounded-lg border border-amber-200 bg-amber-50/60 px-2.5 py-1.5 text-xs text-slate-700 outline-none transition focus:border-amber-400 focus:bg-white focus:ring-4 focus:ring-amber-100"
           />
-        </div>
+        )}
       </div>
     </div>
   );
