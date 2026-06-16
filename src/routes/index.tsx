@@ -14,6 +14,8 @@ import {
   ChevronRight,
   FileText,
   Timer,
+  Sparkles,
+  ChevronDown,
 } from "lucide-react";
 
 // ============================================================================
