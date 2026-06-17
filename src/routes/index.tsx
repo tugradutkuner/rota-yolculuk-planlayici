@@ -482,10 +482,10 @@ function RoutePlanner() {
                 <div className="space-y-3 border-t border-violet-200/60 bg-white/60 p-3 backdrop-blur">
                   <button
                     onClick={generateAdvice}
-                    disabled={aiLoading}
+                    disabled={aiLoading || aiLocked}
                     className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-br from-violet-600 to-fuchsia-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {aiLoading ? (
+                    {aiLoading || aiLocked ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" /> Düşünülüyor...
                       </>
