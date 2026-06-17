@@ -28,7 +28,6 @@ const GOOGLE_MAPS_LIBRARIES = "places,geometry";
 // GEMINI API KEY — Buraya kendi Google Gemini API anahtarınızı yapıştırın
 // ============================================================================
 const GEMINI_API_KEY = "AQ.Ab8RN6K835XhuVw_5X9SEzxFgzVQnTS31Uy4pxRCaYJp5nFgvA";
-const GEMINI_MODEL = "gemini-2.0-flash";
 // ============================================================================
 
 export const Route = createFileRoute("/")({
@@ -109,6 +108,7 @@ function RoutePlanner() {
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
+  const [aiLocked, setAiLocked] = useState(false);
   const [aiText, setAiText] = useState<string | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
 
@@ -117,6 +117,8 @@ function RoutePlanner() {
   const rendererRef = useRef<any>(null);
   const altPolylinesRef = useRef<any[]>([]);
   const lastResultRef = useRef<any>(null);
+  const aiLockRef = useRef(false);
+  const aiLockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -166,6 +168,12 @@ function RoutePlanner() {
     }, 320);
     return () => clearTimeout(t);
   }, [sidebarOpen]);
+
+  useEffect(() => {
+    return () => {
+      if (aiLockTimerRef.current) clearTimeout(aiLockTimerRef.current);
+    };
+  }, []);
 
   const addStop = () => setStops((s) => [...s, { id: uid(), address: "", datetime: "" }]);
   const removeStop = (id: string) =>
@@ -330,14 +338,21 @@ function RoutePlanner() {
       setAiText(null);
       return;
     }
-    if (aiLoading) return;
+    if (aiLoading || aiLockRef.current) return;
+    aiLockRef.current = true;
+    setAiLocked(true);
+    if (aiLockTimerRef.current) clearTimeout(aiLockTimerRef.current);
+    aiLockTimerRef.current = setTimeout(() => {
+      aiLockRef.current = false;
+      setAiLocked(false);
+    }, 5000);
     setAiLoading(true);
     setAiError(null);
     setAiText(null);
     const prompt = `Aşağıdaki rotada seyahat edeceğim. Bana bu şehirlerde mutlaka yapılması gerekenler, gizli kalmış lezzet durakları ve yolculuk için pratik tavsiyeler içeren kısa, Türkçe bir rehber hazırla: ${list.join(" → ")}`;
     try {
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+        `https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -467,10 +482,10 @@ function RoutePlanner() {
                 <div className="space-y-3 border-t border-violet-200/60 bg-white/60 p-3 backdrop-blur">
                   <button
                     onClick={generateAdvice}
-                    disabled={aiLoading}
+                    disabled={aiLoading || aiLocked}
                     className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-br from-violet-600 to-fuchsia-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {aiLoading ? (
+                    {aiLoading || aiLocked ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" /> Düşünülüyor...
                       </>
