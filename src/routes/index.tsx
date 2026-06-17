@@ -330,6 +330,7 @@ function RoutePlanner() {
       setAiText(null);
       return;
     }
+    if (aiLoading) return;
     setAiLoading(true);
     setAiError(null);
     setAiText(null);
@@ -343,13 +344,27 @@ function RoutePlanner() {
           body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
         },
       );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (res.status === 429) {
+        setAiError("Çok fazla istek gönderildi. Lütfen bir dakika bekleyip tekrar deneyiniz.");
+        return;
+      }
+      if (res.status === 401 || res.status === 403) {
+        setAiError("Gemini API anahtarı geçersiz veya yetkisiz. Lütfen anahtarınızı kontrol edin.");
+        return;
+      }
+      if (!res.ok) {
+        setAiError("Tavsiyeler alınamadı. Lütfen daha sonra tekrar deneyiniz.");
+        return;
+      }
       const data = await res.json();
       const text = data?.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join("\n").trim();
-      if (!text) throw new Error("Boş yanıt");
+      if (!text) {
+        setAiError("Yapay zekadan boş yanıt alındı. Lütfen tekrar deneyiniz.");
+        return;
+      }
       setAiText(text);
-    } catch (e: any) {
-      setAiError("Tavsiyeler alınamadı: " + (e?.message ?? "bilinmeyen hata"));
+    } catch {
+      setAiError("Bağlantı hatası. İnternet bağlantınızı kontrol edip tekrar deneyiniz.");
     } finally {
       setAiLoading(false);
     }
