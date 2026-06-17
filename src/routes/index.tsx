@@ -345,7 +345,7 @@ function RoutePlanner() {
         },
       );
       if (res.status === 429) {
-        setAiError("Çok fazla istek gönderildi. Lütfen bir dakika bekleyip tekrar deneyiniz.");
+        setAiError("Google API kota sınırına ulaşıldı. Lütfen 30 saniye bekleyip tekrar deneyin.");
         return;
       }
       if (res.status === 401 || res.status === 403) {
@@ -472,7 +472,7 @@ function RoutePlanner() {
                   >
                     {aiLoading ? (
                       <>
-                        <Loader2 className="h-4 w-4 animate-spin" /> Oluşturuluyor...
+                        <Loader2 className="h-4 w-4 animate-spin" /> Düşünülüyor...
                       </>
                     ) : (
                       <>
