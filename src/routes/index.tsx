@@ -27,7 +27,7 @@ const GOOGLE_MAPS_LIBRARIES = "places,geometry";
 // ============================================================================
 // GEMINI API KEY — Buraya kendi Google Gemini API anahtarınızı yapıştırın
 // ============================================================================
-const GEMINI_API_KEY = "AQ.Ab8RN6Jjk2ZSnHShqjAwT2HWAn6bz0FoL08dgkhxrRtOJMgCyQ";
+const GEMINI_API_KEY = "AQ.Ab8RN6K835XhuVw_5X9SEzxFgzVQnTS31Uy4pxRCaYJp5nFgvA";
 const GEMINI_MODEL = "gemini-2.0-flash";
 // ============================================================================
 
