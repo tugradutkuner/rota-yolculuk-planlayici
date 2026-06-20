@@ -330,11 +330,6 @@ function RoutePlanner() {
       setAiText(null);
       return;
     }
-    if (!GEMINI_API_KEY || GEMINI_API_KEY.includes("YOUR_GEMINI_KEY")) {
-      setAiError("Gemini API anahtarı tanımlanmamış. src/routes/index.tsx içindeki GEMINI_API_KEY sabitini güncelleyin.");
-      setAiText(null);
-      return;
-    }
     if (aiLoading || aiLockRef.current) return;
     aiLockRef.current = true;
     setAiLocked(true);
@@ -346,41 +341,25 @@ function RoutePlanner() {
     setAiLoading(true);
     setAiError(null);
     setAiText(null);
-    const prompt = `Aşağıdaki rotada seyahat edeceğim. Bana bu şehirlerde mutlaka yapılması gerekenler, gizli kalmış lezzet durakları ve yolculuk için pratik tavsiyeler içeren kısa, Türkçe bir rehber hazırla: ${list.join(" → ")}`;
     try {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-        },
-      );
-      if (res.status === 429) {
-        setAiError("Google API kota sınırına ulaşıldı. Lütfen 30 saniye bekleyip tekrar deneyin.");
-        return;
-      }
-      if (res.status === 401 || res.status === 403) {
-        setAiError("Gemini API anahtarı geçersiz veya yetkisiz. Lütfen anahtarınızı kontrol edin.");
-        return;
-      }
-      if (!res.ok) {
-        setAiError("Tavsiyeler alınamadı. Lütfen daha sonra tekrar deneyiniz.");
-        return;
-      }
-      const data = await res.json();
-      const text = data?.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join("\n").trim();
-      if (!text) {
+      const result = await callAdvice({ data: { stops: list } });
+      setAiText(result.text);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("rate_limited")) {
+        setAiError("OpenAI API kota sınırına ulaşıldı. Lütfen 30 saniye bekleyip tekrar deneyin.");
+      } else if (msg.includes("unauthorized") || msg.includes("missing_api_key")) {
+        setAiError("OpenAI API anahtarı geçersiz veya tanımlı değil.");
+      } else if (msg.includes("empty_response")) {
         setAiError("Yapay zekadan boş yanıt alındı. Lütfen tekrar deneyiniz.");
-        return;
+      } else {
+        setAiError("Tavsiyeler alınamadı. Lütfen daha sonra tekrar deneyiniz.");
       }
-      setAiText(text);
-    } catch {
-      setAiError("Bağlantı hatası. İnternet bağlantınızı kontrol edip tekrar deneyiniz.");
     } finally {
       setAiLoading(false);
     }
   };
+
 
 
   return (
