@@ -655,15 +655,15 @@ function StopRow({
         setDraggable(false);
         onDragEnd();
       }}
-      className={`group rounded-xl border bg-white/80 p-3 backdrop-blur transition ${
+      className={`group rounded-2xl border bg-white p-4 transition-all duration-200 transform-gpu ${
         isDragging
-          ? "border-blue-400 opacity-50"
+          ? "border-violet-400 opacity-50 shadow-lg"
           : isDragOver
-            ? "border-blue-400 ring-2 ring-blue-200"
-            : "border-slate-200/80 hover:border-slate-300 hover:shadow-sm"
+            ? "border-violet-400 ring-2 ring-violet-500/15 shadow-md"
+            : "border-slate-200/70 shadow-sm hover:shadow-md hover:border-slate-300/80"
       }`}
     >
-      <div className="mb-2 flex items-center justify-between">
+      <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -672,7 +672,7 @@ function StopRow({
             onTouchStart={() => setDraggable(true)}
             onTouchEnd={() => setDraggable(false)}
             aria-label="Sürükle"
-            className="cursor-grab touch-none rounded p-0.5 text-slate-300 transition hover:text-slate-500 active:cursor-grabbing"
+            className="cursor-grab touch-none rounded-md p-1 text-slate-300 transition-colors duration-150 hover:bg-slate-100 hover:text-slate-600 active:cursor-grabbing active:text-slate-700"
           >
             <GripVertical className="h-4 w-4" />
           </button>
@@ -681,7 +681,7 @@ function StopRow({
           >
             {index + 1}
           </span>
-          <span className="text-xs font-medium text-slate-600">{label}</span>
+          <span className="text-[13px] font-semibold tracking-tight text-slate-700">{label}</span>
         </div>
         <div className="flex items-center gap-1">
           <button
