@@ -552,23 +552,25 @@ function MetricCard({
 }) {
   const gradient =
     accent === "blue"
-      ? "from-blue-500/10 via-blue-500/5 to-transparent"
-      : "from-indigo-500/10 via-indigo-500/5 to-transparent";
+      ? "from-indigo-50 via-white to-violet-50/60"
+      : "from-violet-50 via-white to-fuchsia-50/60";
   const tone =
     accent === "blue"
-      ? "text-blue-600 bg-blue-100/80"
-      : "text-indigo-600 bg-indigo-100/80";
+      ? "text-indigo-600 bg-indigo-100/70"
+      : "text-violet-600 bg-violet-100/70";
   return (
     <div
-      className={`group relative overflow-hidden rounded-xl border border-slate-200/70 bg-gradient-to-br ${gradient} bg-white/70 p-3 shadow-sm backdrop-blur transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md`}
+      className={`group relative overflow-hidden rounded-2xl border border-slate-200/60 bg-gradient-to-br ${gradient} p-4 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md transform-gpu`}
     >
       <div className="flex items-center gap-2">
         <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${tone}`}>{icon}</span>
-        <span className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+        <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-slate-500">
           {label}
         </span>
       </div>
-      <div className="mt-2 text-xl font-semibold tabular-nums text-slate-900">{value}</div>
+      <div key={value} className="mt-3 text-2xl font-bold tabular-nums tracking-tight text-slate-900 animate-fade-in">
+        {value}
+      </div>
     </div>
   );
 }
