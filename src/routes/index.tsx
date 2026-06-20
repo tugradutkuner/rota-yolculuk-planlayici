@@ -488,11 +488,11 @@ function RoutePlanner() {
           </div>
 
 
-          <div className="border-t border-slate-100/80 bg-white/60 p-4 backdrop-blur">
+          <div className="border-t border-slate-200/60 bg-white/70 p-5 backdrop-blur">
             <button
               onClick={calculate}
               disabled={!mapReady || calculating}
-              className="group flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-md shadow-blue-300/40 transition hover:shadow-lg hover:shadow-blue-400/50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+              className="group flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-indigo-600 via-violet-600 to-indigo-700 px-4 py-3 text-sm font-semibold tracking-tight text-white shadow-lg shadow-indigo-500/30 transition-all duration-200 hover:shadow-xl hover:shadow-indigo-500/40 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none transform-gpu"
             >
               {calculating ? (
                 <>
