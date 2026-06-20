@@ -107,6 +107,7 @@ function RoutePlanner() {
   const [aiLocked, setAiLocked] = useState(false);
   const [aiText, setAiText] = useState<string | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
+  const callAdvice = useServerFn(generateTravelAdvice);
 
   const mapDivRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
