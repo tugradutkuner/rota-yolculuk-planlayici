@@ -431,7 +431,7 @@ function RoutePlanner() {
 
               <button
                 onClick={addStop}
-                className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 bg-white/50 px-3 py-2.5 text-sm font-medium text-slate-600 transition hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700"
+                className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-white/50 px-3 py-3 text-sm font-semibold text-slate-600 transition-all duration-200 hover:border-violet-400 hover:bg-violet-50/60 hover:text-violet-700 active:scale-[0.99]"
               >
                 <Plus className="h-4 w-4" /> Durak Ekle
               </button>
