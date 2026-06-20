@@ -735,17 +735,17 @@ function StopRow({
         )}
 
         {showDepartureInput && (
-          <div className="relative">
-            <Calendar className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <div className="relative pt-2">
+            <Calendar className="pointer-events-none absolute left-3 top-1/2 mt-1 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
               type="datetime-local"
               value={stop.datetime}
               onChange={(e) => onChange({ datetime: e.target.value })}
               placeholder={depLabel}
               aria-label={depLabel}
-              className="w-full rounded-lg border border-slate-200 bg-slate-50/70 py-2 pl-8 pr-2 text-sm text-slate-700 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-60 [&::-webkit-calendar-picker-indicator]:hover:opacity-100"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 pl-9 pr-3 text-sm font-medium text-slate-700 outline-none transition-all duration-200 focus:border-violet-500 focus:bg-white focus:ring-2 focus:ring-violet-500/10 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-50 [&::-webkit-calendar-picker-indicator]:hover:opacity-100"
             />
-            <span className="pointer-events-none absolute -top-1.5 left-2 rounded bg-white px-1 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+            <span className="pointer-events-none absolute -top-0.5 left-3 rounded bg-white px-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">
               {depLabel}
             </span>
           </div>
