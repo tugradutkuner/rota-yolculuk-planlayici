@@ -407,7 +407,7 @@ function RoutePlanner() {
                 <span className="text-[11px] font-medium text-slate-400">{stops.length} nokta</span>
               </div>
 
-              <div className="space-y-2.5">
+              <div className="space-y-3">
                 {stops.map((stop, i) => (
                   <StopRow
                     key={stop.id}
