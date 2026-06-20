@@ -363,26 +363,27 @@ function RoutePlanner() {
 
 
   return (
-    <div className="relative flex h-screen flex-col bg-gradient-to-br from-slate-100 via-blue-50 to-indigo-100 text-slate-900 lg:flex-row">
+    <div className="relative flex h-screen flex-col bg-gradient-to-br from-slate-50 via-indigo-50/40 to-violet-50/40 text-slate-900 lg:flex-row">
       <aside
-        className={`flex flex-col overflow-hidden border-slate-200/70 bg-white/70 backdrop-blur-xl shadow-xl shadow-slate-900/5 transition-all duration-300 ease-in-out lg:h-screen lg:border-r ${
+        style={{ backgroundColor: "rgba(255,255,255,0.75)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", willChange: "transform, width" }}
+        className={`flex flex-col overflow-hidden border-slate-200/60 shadow-2xl shadow-slate-900/[0.04] transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] transform-gpu lg:h-screen lg:border-r ${
           sidebarOpen
-            ? "w-full border-b lg:w-[420px]"
+            ? "w-full border-b lg:w-[440px]"
             : "h-0 w-full border-b-0 lg:h-screen lg:w-0 lg:border-r-0"
         }`}
       >
-        <div className="flex h-full w-full flex-col lg:w-[420px]">
-          <header className="flex items-center gap-3 border-b border-slate-100/80 px-5 py-4">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-300/40">
+        <div className="flex h-full w-full flex-col lg:w-[440px]">
+          <header className="flex items-center gap-3 border-b border-slate-200/60 px-6 py-5">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600 text-white shadow-lg shadow-violet-500/30">
               <Navigation className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <h1 className="truncate text-base font-semibold leading-tight">Rota Planlayıcı</h1>
-              <p className="truncate text-xs text-slate-500">Çok duraklı rotanızı planlayın</p>
+              <h1 className="truncate text-[15px] font-bold leading-tight tracking-tight text-slate-900">Rota Planlayıcı</h1>
+              <p className="truncate text-xs font-medium text-slate-500">Çok duraklı rotanızı planlayın</p>
             </div>
           </header>
 
-          <div className="flex-1 overflow-y-auto px-5 py-4">
+          <div className="flex-1 overflow-y-auto p-6 space-y-6">
             <div className="grid grid-cols-2 gap-3">
               <MetricCard
                 icon={<RouteIcon className="h-4 w-4" />}
