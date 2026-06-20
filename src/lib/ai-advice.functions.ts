@@ -41,9 +41,13 @@ export const generateTravelAdvice = createServerFn({ method: "POST" })
       throw new Error("rate_limited");
     }
     if (res.status === 401 || res.status === 403) {
+      const body = await res.text().catch(() => "");
+      console.error("OpenAI auth error", res.status, body);
       throw new Error("unauthorized");
     }
     if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      console.error("OpenAI upstream error", res.status, body);
       throw new Error("upstream_error");
     }
     const json = (await res.json()) as {
