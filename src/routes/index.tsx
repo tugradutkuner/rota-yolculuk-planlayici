@@ -400,11 +400,11 @@ function RoutePlanner() {
             </div>
 
             <div>
-              <div className="mb-2 flex items-center justify-between">
-                <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-500">
                   Duraklar
                 </h2>
-                <span className="text-xs text-slate-400">{stops.length} nokta</span>
+                <span className="text-[11px] font-medium text-slate-400">{stops.length} nokta</span>
               </div>
 
               <div className="space-y-2.5">
