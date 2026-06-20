@@ -399,7 +399,7 @@ function RoutePlanner() {
               />
             </div>
 
-            <div className="mt-5">
+            <div>
               <div className="mb-2 flex items-center justify-between">
                 <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Duraklar
