@@ -438,12 +438,12 @@ function RoutePlanner() {
             </div>
 
             {statusMsg && (
-              <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              <div className="rounded-xl border border-amber-200/70 bg-amber-50/80 px-3.5 py-2.5 text-xs font-medium text-amber-800">
                 {statusMsg}
               </div>
             )}
 
-            <div className="mt-5 overflow-hidden rounded-xl border border-violet-200/70 bg-gradient-to-br from-violet-50 via-fuchsia-50 to-transparent">
+            <div className="overflow-hidden rounded-2xl border border-violet-200/60 bg-gradient-to-br from-violet-50/80 via-fuchsia-50/60 to-transparent shadow-sm">
               <button
                 type="button"
                 onClick={() => setAiOpen((v) => !v)}
