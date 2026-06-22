@@ -810,13 +810,7 @@ function StopRow({
                 ? "bg-amber-50 text-amber-600"
                 : "text-slate-400 hover:bg-slate-100 hover:text-slate-600"
             }`}
-            aria-label="Not Ekle"
-            title="Not Ekle"
-            className={`rounded-md p-1 transition ${
-              stop.noteOpen || stop.note
-                ? "bg-amber-50 text-amber-600"
-                : "text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-            }`}
+          >
           >
             <FileText className="h-4 w-4" />
           </button>
