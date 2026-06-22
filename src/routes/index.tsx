@@ -781,6 +781,12 @@ function StopRow({
   const showDepartureInput = !isEnd; // start + intermediates
   const depLabel = isStart ? "Kalkış Saati" : "Mola Sonrası Kalkış";
 
+  const dotTone = isStart
+    ? "bg-emerald-500 ring-emerald-200"
+    : isEnd
+      ? "bg-rose-500 ring-rose-200"
+      : "bg-violet-500 ring-violet-200";
+
   return (
     <div
       draggable={draggable}
@@ -791,7 +797,7 @@ function StopRow({
         setDraggable(false);
         onDragEnd();
       }}
-      className={`group rounded-2xl border bg-white p-4 transition-all duration-200 transform-gpu ${
+      className={`group relative rounded-2xl border bg-white p-4 transition-all duration-200 transform-gpu ${
         isDragging
           ? "border-violet-400 opacity-50 shadow-lg"
           : isDragOver
@@ -799,6 +805,21 @@ function StopRow({
             : "border-slate-200/70 shadow-sm hover:shadow-md hover:border-slate-300/80"
       }`}
     >
+      {/* Timeline dot — sits on the dashed connector line */}
+      <span
+        aria-hidden
+        className={`absolute -left-[22px] top-5 h-3 w-3 rounded-full ring-4 shadow-sm ${dotTone}`}
+      />
+
+      {/* Premium floating ETA badge — anchored on the timeline */}
+      {showEta && (
+        <div className="absolute -top-3 left-3 z-10 flex items-center gap-1.5 rounded-full border border-indigo-200/70 bg-white/80 px-2.5 py-1 text-[11px] font-semibold text-indigo-700 shadow-[0_4px_16px_-4px_rgba(99,102,241,0.35)] backdrop-blur-md animate-fade-in">
+          <Timer className="h-3 w-3 text-indigo-500" />
+          <span className="uppercase tracking-[0.06em] text-indigo-500/80">Varış</span>
+          <span className="tabular-nums text-indigo-900">{fmtSmartTR(eta!)}</span>
+        </div>
+      )}
+
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <button
@@ -848,7 +869,7 @@ function StopRow({
         </div>
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-2.5">
         <div className="relative">
           <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 transition-colors" />
           <input
@@ -861,32 +882,31 @@ function StopRow({
           />
         </div>
 
-        {showEta && (
-          <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-700">
-            <Timer className="h-3.5 w-3.5" />
-            <span className="text-[11px] uppercase tracking-wide opacity-80">Tahmini Varış</span>
-            <span className="ml-auto tabular-nums">
-              {eta!.toDateString() === new Date().toDateString()
-                ? fmtTime(eta!)
-                : fmtDateTime(eta!)}
-            </span>
-          </div>
-        )}
-
         {showDepartureInput && (
-          <div className="relative pt-2">
-            <Calendar className="pointer-events-none absolute left-3 top-1/2 mt-1 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <div className="group/time relative">
+            <span className="pointer-events-none absolute -top-2 left-3 z-10 rounded-md bg-white px-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-500">
+              {depLabel}
+            </span>
+            <Clock className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-violet-500/80 transition-colors group-focus-within/time:text-violet-600" />
             <input
               type="datetime-local"
               value={stop.datetime}
               onChange={(e) => onChange({ datetime: e.target.value })}
-              placeholder={depLabel}
               aria-label={depLabel}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 pl-9 pr-3 text-sm font-medium text-slate-700 outline-none transition-all duration-200 focus:border-violet-500 focus:bg-white focus:ring-2 focus:ring-violet-500/10 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-50 [&::-webkit-calendar-picker-indicator]:hover:opacity-100"
+              className={`w-full rounded-xl border border-slate-200/60 bg-white/40 py-2.5 pl-10 pr-3 text-sm font-semibold tabular-nums tracking-tight outline-none transition-all duration-200 focus:border-violet-500 focus:bg-white focus:ring-4 focus:ring-violet-500/15 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:m-0 [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-0 ${
+                stop.datetime ? "text-slate-800" : "text-transparent"
+              }`}
             />
-            <span className="pointer-events-none absolute -top-0.5 left-3 rounded bg-white px-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">
-              {depLabel}
-            </span>
+            {!stop.datetime && (
+              <span className="pointer-events-none absolute left-10 top-1/2 -translate-y-1/2 text-sm font-medium text-slate-400">
+                Yolculuk başlangıç zamanını seçin...
+              </span>
+            )}
+            {stop.datetime && (
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-violet-600/90">
+                {fmtSmartTR(new Date(stop.datetime))}
+              </span>
+            )}
           </div>
         )}
 
