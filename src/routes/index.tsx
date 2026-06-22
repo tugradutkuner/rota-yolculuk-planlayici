@@ -539,7 +539,11 @@ function RoutePlanner() {
                 <span className="text-[11px] font-medium text-slate-400">{stops.length} nokta</span>
               </div>
 
-              <div className="space-y-3">
+              <div className="relative space-y-4 pl-7">
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute left-[10px] top-4 bottom-4 border-l-2 border-dashed border-violet-200/80"
+                />
                 {stops.map((stop, i) => (
                   <StopRow
                     key={stop.id}
