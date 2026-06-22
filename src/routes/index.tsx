@@ -893,20 +893,17 @@ function StopRow({
               value={stop.datetime}
               onChange={(e) => onChange({ datetime: e.target.value })}
               aria-label={depLabel}
-              className={`w-full rounded-xl border border-slate-200/60 bg-white/40 py-2.5 pl-10 pr-3 text-sm font-semibold tabular-nums tracking-tight outline-none transition-all duration-200 focus:border-violet-500 focus:bg-white focus:ring-4 focus:ring-violet-500/15 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:m-0 [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-0 ${
-                stop.datetime ? "text-slate-800" : "text-transparent"
-              }`}
+              className="w-full rounded-xl border border-slate-200/60 bg-white/40 py-2.5 pl-10 pr-3 text-sm font-semibold tabular-nums tracking-tight text-transparent outline-none transition-all duration-200 focus:border-violet-500 focus:bg-white focus:ring-4 focus:ring-violet-500/15 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:m-0 [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-datetime-edit]:opacity-0"
             />
-            {!stop.datetime && (
-              <span className="pointer-events-none absolute left-10 top-1/2 -translate-y-1/2 text-sm font-medium text-slate-400">
-                Yolculuk başlangıç zamanını seçin...
-              </span>
-            )}
-            {stop.datetime && (
-              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-violet-600/90">
-                {fmtSmartTR(new Date(stop.datetime))}
-              </span>
-            )}
+            <span
+              className={`pointer-events-none absolute left-10 right-3 top-1/2 -translate-y-1/2 truncate text-sm font-semibold ${
+                stop.datetime ? "text-slate-800" : "font-medium text-slate-400"
+              }`}
+            >
+              {stop.datetime
+                ? fmtSmartTR(new Date(stop.datetime))
+                : "Yolculuk başlangıç zamanını seçin..."}
+            </span>
           </div>
         )}
 
