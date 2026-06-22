@@ -794,11 +794,10 @@ function StopRow({
           >
             {index + 1}
           </span>
-          <span className="text-[13px] font-semibold tracking-tight text-slate-700">{label}</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
+        <div className="text-[13px] font-semibold tracking-tight text-slate-700 flex items-center gap-2">
+            <span>{label}</span>
+            <WeatherBadge location={stop.location} />
+          </div>
             onClick={() => onChange({ noteOpen: !stop.noteOpen })}
             aria-label="Not Ekle"
             title="Not Ekle"
