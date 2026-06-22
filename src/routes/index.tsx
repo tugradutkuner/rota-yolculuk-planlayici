@@ -18,7 +18,120 @@ import {
   Timer,
   Sparkles,
   ChevronDown,
+  Sun,
+  Cloud,
+  CloudRain,
+  CloudSnow,
+  CloudLightning,
+  CloudFog,
+  CloudSun,
 } from "lucide-react";
+
+// ---------------------------------------------------------------------------
+// Live Weather (Google Weather API) — fetched per stop using coordinates.
+// ---------------------------------------------------------------------------
+type WeatherInfo = { tempC: number; description: string; type: string } | null;
+const weatherCache = new Map<string, WeatherInfo>();
+const weatherInflight = new Map<string, Promise<WeatherInfo>>();
+
+async function fetchWeather(lat: number, lng: number): Promise<WeatherInfo> {
+  const key = `${lat.toFixed(3)},${lng.toFixed(3)}`;
+  if (weatherCache.has(key)) return weatherCache.get(key)!;
+  if (weatherInflight.has(key)) return weatherInflight.get(key)!;
+  const p = (async () => {
+    try {
+      const url = `https://weather.googleapis.com/v1/currentConditions:lookup?key=${GOOGLE_MAPS_API_KEY}&location.latitude=${lat}&location.longitude=${lng}&languageCode=tr`;
+      const res = await fetch(url);
+      if (!res.ok) {
+        weatherCache.set(key, null);
+        return null;
+      }
+      const j = await res.json();
+      const tempC = j?.temperature?.degrees;
+      const description = j?.weatherCondition?.description?.text ?? "";
+      const type = j?.weatherCondition?.type ?? "";
+      if (typeof tempC !== "number") {
+        weatherCache.set(key, null);
+        return null;
+      }
+      const data: WeatherInfo = { tempC, description, type };
+      weatherCache.set(key, data);
+      return data;
+    } catch {
+      weatherCache.set(key, null);
+      return null;
+    } finally {
+      weatherInflight.delete(key);
+    }
+  })();
+  weatherInflight.set(key, p);
+  return p;
+}
+
+function WeatherIcon({ type, className }: { type: string; className?: string }) {
+  const t = type.toUpperCase();
+  if (t.includes("THUNDER")) return <CloudLightning className={className} />;
+  if (t.includes("SNOW") || t.includes("SLEET") || t.includes("HAIL"))
+    return <CloudSnow className={className} />;
+  if (t.includes("RAIN") || t.includes("SHOWER") || t.includes("DRIZZLE"))
+    return <CloudRain className={className} />;
+  if (t.includes("FOG") || t.includes("MIST") || t.includes("HAZE") || t.includes("SMOKE"))
+    return <CloudFog className={className} />;
+  if (t.includes("PARTLY") || t.includes("MOSTLY_CLEAR")) return <CloudSun className={className} />;
+  if (t.includes("CLOUD")) return <Cloud className={className} />;
+  if (t.includes("CLEAR") || t.includes("SUN")) return <Sun className={className} />;
+  return <Cloud className={className} />;
+}
+
+function WeatherBadge({ location }: { location?: { lat: number; lng: number } }) {
+  const [data, setData] = useState<WeatherInfo>(null);
+  const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    if (!location) {
+      setData(null);
+      setFailed(false);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    setFailed(false);
+    fetchWeather(location.lat, location.lng)
+      .then((w) => {
+        if (cancelled) return;
+        if (!w) setFailed(true);
+        else setData(w);
+      })
+      .finally(() => !cancelled && setLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [location?.lat, location?.lng]);
+
+  if (!location) return null;
+  if (loading) {
+    return (
+      <div className="flex items-center gap-1.5 rounded-lg bg-slate-100/70 px-2 py-1">
+        <div className="h-3 w-3 animate-pulse rounded-full bg-slate-300" />
+        <div className="h-2.5 w-10 animate-pulse rounded bg-slate-300" />
+      </div>
+    );
+  }
+  if (failed || !data) return null;
+  return (
+    <div
+      className="flex items-center gap-1.5 rounded-lg border border-sky-100 bg-sky-50/70 px-2 py-1 text-[11px] font-medium text-slate-600 animate-fade-in"
+      title={data.description}
+    >
+      <WeatherIcon type={data.type} className="h-3.5 w-3.5 text-sky-600" />
+      <span className="tabular-nums font-semibold text-slate-700">{Math.round(data.tempC)}°C</span>
+      {data.description && (
+        <span className="hidden text-slate-500 sm:inline">· {data.description}</span>
+      )}
+    </div>
+  );
+}
 
 // ============================================================================
 // GOOGLE MAPS API KEY — Buraya kendi Google Maps API anahtarınızı yapıştırın
@@ -681,7 +794,10 @@ function StopRow({
           >
             {index + 1}
           </span>
-          <span className="text-[13px] font-semibold tracking-tight text-slate-700">{label}</span>
+          <div className="flex items-center gap-2 text-[13px] font-semibold tracking-tight text-slate-700">
+            <span>{label}</span>
+            <WeatherBadge location={stop.location} />
+          </div>
         </div>
         <div className="flex items-center gap-1">
           <button
