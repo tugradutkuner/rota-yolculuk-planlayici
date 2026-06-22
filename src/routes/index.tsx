@@ -201,6 +201,25 @@ const fmtDateTime = (d: Date) =>
     minute: "2-digit",
   });
 
+// Smart Turkish date/time: "Bugün, 14:30" / "Yarın, 09:00" / "23 Haziran 2026, 11:15"
+const TR_MONTHS = [
+  "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
+  "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık",
+];
+function fmtSmartTR(d: Date): string {
+  const time = fmtTime(d);
+  const today = new Date();
+  const tomorrow = new Date();
+  tomorrow.setDate(today.getDate() + 1);
+  const sameDay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+  if (sameDay(d, today)) return `Bugün, ${time}`;
+  if (sameDay(d, tomorrow)) return `Yarın, ${time}`;
+  return `${d.getDate()} ${TR_MONTHS[d.getMonth()]} ${d.getFullYear()}, ${time}`;
+}
+
 function RoutePlanner() {
   const [stops, setStops] = useState<Stop[]>([
     { id: uid(), address: "", datetime: "" },
