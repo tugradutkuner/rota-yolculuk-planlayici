@@ -29,9 +29,9 @@ import {
 
 // ---------------------------------------------------------------------------
 // Live Weather (Google Weather API) — fetched per stop using coordinates
-// and the stop's selected/calculated date. Uses currentConditions for today,
-// daily forecast for upcoming days (within ~10 day window), and a graceful
-// "Tahmin Bekleniyor" placeholder for dates beyond the forecast horizon.
+// and the stop's selected/calculated date. Uses current conditions only when
+// there is no future target, otherwise prefers hourly forecast for the exact
+// selected ETA/departure hour and falls back to daily day/night forecast.
 // ---------------------------------------------------------------------------
 type WeatherOk = {
   status: "ok";
@@ -39,6 +39,7 @@ type WeatherOk = {
   description: string;
   type: string;
   approx?: boolean;
+  source?: "current" | "hourly" | "daily";
 };
 type WeatherInfo = WeatherOk | null;
 
@@ -47,6 +48,7 @@ const weatherCache = new Map<string, WeatherInfo>();
 const weatherInflight = new Map<string, Promise<WeatherInfo>>();
 
 const FORECAST_DAYS = 10;
+const FORECAST_HOURS = 240;
 
 // Local YYYY-MM-DD for a Date (used as a cache/day key).
 function localDayKey(d: Date): string {
@@ -64,62 +66,111 @@ function daysFromToday(target: Date): number {
   return Math.round((a.getTime() - b.getTime()) / 86_400_000);
 }
 
+function hourKey(d: Date): string {
+  return `${localDayKey(d)}T${String(d.getHours()).padStart(2, "0")}`;
+}
+
+function displayDateKey(displayDate: any): string | null {
+  if (!displayDate?.year || !displayDate?.month || !displayDate?.day) return null;
+  return `${displayDate.year}-${String(displayDate.month).padStart(2, "0")}-${String(displayDate.day).padStart(2, "0")}`;
+}
+
+async function fetchCurrentWeather(lat: number, lng: number, approx = false): Promise<WeatherInfo> {
+  const url = `https://weather.googleapis.com/v1/currentConditions:lookup?key=${GOOGLE_MAPS_API_KEY}&location.latitude=${lat}&location.longitude=${lng}&languageCode=tr`;
+  const res = await fetch(url);
+  if (!res.ok) return null;
+  const j = await res.json();
+  const tempC = j?.temperature?.degrees;
+  const description = j?.weatherCondition?.description?.text ?? "";
+  const type = j?.weatherCondition?.type ?? "";
+  if (typeof tempC !== "number") return null;
+  return { status: "ok", tempC, description, type, approx, source: "current" };
+}
+
+async function fetchHourlyWeather(lat: number, lng: number, target: Date): Promise<WeatherInfo> {
+  const now = new Date();
+  const hoursAhead = Math.ceil((target.getTime() - now.getTime()) / 3_600_000) + 1;
+  const hours = Math.min(FORECAST_HOURS, Math.max(1, hoursAhead));
+  const url = `https://weather.googleapis.com/v1/forecast/hours:lookup?key=${GOOGLE_MAPS_API_KEY}&location.latitude=${lat}&location.longitude=${lng}&hours=${hours}&languageCode=tr`;
+  const res = await fetch(url);
+  if (!res.ok) return null;
+  const j = await res.json();
+  const list: any[] = Array.isArray(j?.forecastHours) ? j.forecastHours : [];
+  if (!list.length) return null;
+  const targetMs = target.getTime();
+  const match = list.reduce<any | null>((best, item) => {
+    const start = item?.interval?.startTime ? new Date(item.interval.startTime).getTime() : NaN;
+    if (!Number.isFinite(start)) return best;
+    if (!best) return item;
+    const bestStart = new Date(best.interval.startTime).getTime();
+    return Math.abs(start - targetMs) < Math.abs(bestStart - targetMs) ? item : best;
+  }, null);
+  const tempC = match?.temperature?.degrees;
+  const description = match?.weatherCondition?.description?.text ?? "";
+  const type = match?.weatherCondition?.type ?? "";
+  if (typeof tempC !== "number") return null;
+  return { status: "ok", tempC, description, type, source: "hourly" };
+}
+
+async function fetchDailyWeather(lat: number, lng: number, target: Date, offset: number): Promise<WeatherInfo> {
+  const days = Math.min(FORECAST_DAYS, Math.max(1, offset + 1));
+  const dayKey = localDayKey(target);
+  const url = `https://weather.googleapis.com/v1/forecast/days:lookup?key=${GOOGLE_MAPS_API_KEY}&location.latitude=${lat}&location.longitude=${lng}&days=${days}&languageCode=tr`;
+  const res = await fetch(url);
+  if (!res.ok) return null;
+  const j = await res.json();
+  const list: any[] = Array.isArray(j?.forecastDays) ? j.forecastDays : [];
+  const match = list.find((d) => displayDateKey(d?.displayDate) === dayKey);
+  if (!match) return null;
+
+  const targetMs = target.getTime();
+  const inInterval = (part: any) => {
+    const start = part?.interval?.startTime ? new Date(part.interval.startTime).getTime() : NaN;
+    const end = part?.interval?.endTime ? new Date(part.interval.endTime).getTime() : NaN;
+    return Number.isFinite(start) && Number.isFinite(end) && targetMs >= start && targetMs < end;
+  };
+  const isDaytime = inInterval(match.daytimeForecast)
+    ? true
+    : inInterval(match.nighttimeForecast)
+      ? false
+      : target.getHours() >= 6 && target.getHours() < 18;
+  const part = isDaytime ? match.daytimeForecast : match.nighttimeForecast;
+  const tempC =
+    part?.temperature?.degrees ??
+    (isDaytime ? match?.maxTemperature?.degrees : match?.minTemperature?.degrees) ??
+    match?.maxTemperature?.degrees ??
+    match?.minTemperature?.degrees;
+  const description = part?.weatherCondition?.description?.text ?? "";
+  const type = part?.weatherCondition?.type ?? "";
+  if (typeof tempC !== "number") return null;
+  return { status: "ok", tempC, description, type, source: "daily" };
+}
+
 async function fetchWeather(
   lat: number,
   lng: number,
   target: Date | null,
 ): Promise<WeatherInfo> {
+  const now = new Date();
   const offset = target ? daysFromToday(target) : 0;
-  // Past dates or "now" → current conditions.
-  const useCurrent = !target || offset <= 0;
-  // Outside forecast window → fall back to current conditions, mark as approximate.
-  const outOfWindow = !!(target && offset > FORECAST_DAYS);
-  const effectiveUseCurrent = useCurrent || outOfWindow;
-
-  const dayKey = effectiveUseCurrent ? (outOfWindow ? "approx" : "current") : localDayKey(target!);
+  const isFutureTarget = !!target && target.getTime() > now.getTime() + 15 * 60_000;
+  const withinForecastWindow = !!target && offset >= 0 && offset < FORECAST_DAYS;
+  const dayKey = target
+    ? withinForecastWindow
+      ? hourKey(target)
+      : `guncel-${localDayKey(target)}`
+    : "current";
   const key = `${lat.toFixed(3)},${lng.toFixed(3)}|${dayKey}`;
   if (weatherCache.has(key)) return weatherCache.get(key)!;
   if (weatherInflight.has(key)) return weatherInflight.get(key)!;
 
   const p = (async (): Promise<WeatherInfo> => {
     try {
-      if (effectiveUseCurrent) {
-        const url = `https://weather.googleapis.com/v1/currentConditions:lookup?key=${GOOGLE_MAPS_API_KEY}&location.latitude=${lat}&location.longitude=${lng}&languageCode=tr`;
-        const res = await fetch(url);
-        if (!res.ok) return null;
-        const j = await res.json();
-        const tempC = j?.temperature?.degrees;
-        const description = j?.weatherCondition?.description?.text ?? "";
-        const type = j?.weatherCondition?.type ?? "";
-        if (typeof tempC !== "number") return null;
-        return { status: "ok", tempC, description, type, approx: outOfWindow };
-      }
-
-      // Daily forecast lookup — request enough days to cover the target.
-      const days = Math.min(FORECAST_DAYS, Math.max(1, offset + 1));
-      const url = `https://weather.googleapis.com/v1/forecast/days:lookup?key=${GOOGLE_MAPS_API_KEY}&location.latitude=${lat}&location.longitude=${lng}&days=${days}&languageCode=tr`;
-      const res = await fetch(url);
-      if (!res.ok) return null;
-      const j = await res.json();
-      const list: any[] = Array.isArray(j?.forecastDays) ? j.forecastDays : [];
-      const match = list.find((d) => {
-        const dd = d?.displayDate ?? d?.interval?.startTime;
-        if (dd?.year && dd?.month && dd?.day) {
-          const k = `${dd.year}-${String(dd.month).padStart(2, "0")}-${String(dd.day).padStart(2, "0")}`;
-          return k === dayKey;
-        }
-        return false;
-      }) ?? list[offset] ?? list[list.length - 1];
-      if (!match) return null;
-      const part = match.daytimeForecast ?? match.nighttimeForecast ?? {};
-      const tempC =
-        match?.maxTemperature?.degrees ??
-        match?.minTemperature?.degrees ??
-        part?.temperature?.degrees;
-      const description = part?.weatherCondition?.description?.text ?? "";
-      const type = part?.weatherCondition?.type ?? "";
-      if (typeof tempC !== "number") return null;
-      return { status: "ok", tempC, description, type };
+      if (!target || !isFutureTarget) return fetchCurrentWeather(lat, lng);
+      if (!withinForecastWindow) return fetchCurrentWeather(lat, lng, true);
+      const hourly = await fetchHourlyWeather(lat, lng, target);
+      if (hourly) return hourly;
+      return fetchDailyWeather(lat, lng, target, offset);
     } catch {
       return null;
     }
