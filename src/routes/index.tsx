@@ -28,42 +28,107 @@ import {
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
-// Live Weather (Google Weather API) — fetched per stop using coordinates.
+// Live Weather (Google Weather API) — fetched per stop using coordinates
+// and the stop's selected/calculated date. Uses currentConditions for today,
+// daily forecast for upcoming days (within ~10 day window), and a graceful
+// "Tahmin Bekleniyor" placeholder for dates beyond the forecast horizon.
 // ---------------------------------------------------------------------------
-type WeatherInfo = { tempC: number; description: string; type: string } | null;
+type WeatherOk = {
+  status: "ok";
+  tempC: number;
+  description: string;
+  type: string;
+};
+type WeatherPending = { status: "pending" };
+type WeatherInfo = WeatherOk | WeatherPending | null;
+
 const weatherCache = new Map<string, WeatherInfo>();
 const weatherInflight = new Map<string, Promise<WeatherInfo>>();
 
-async function fetchWeather(lat: number, lng: number): Promise<WeatherInfo> {
-  const key = `${lat.toFixed(3)},${lng.toFixed(3)}`;
+const FORECAST_DAYS = 10;
+
+// Local YYYY-MM-DD for a Date (used as a cache/day key).
+function localDayKey(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+// How many whole local days from today (negative = past).
+function daysFromToday(target: Date): number {
+  const a = new Date(target.getFullYear(), target.getMonth(), target.getDate());
+  const today = new Date();
+  const b = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  return Math.round((a.getTime() - b.getTime()) / 86_400_000);
+}
+
+async function fetchWeather(
+  lat: number,
+  lng: number,
+  target: Date | null,
+): Promise<WeatherInfo> {
+  const offset = target ? daysFromToday(target) : 0;
+  // Past dates or "now" → current conditions.
+  const useCurrent = !target || offset <= 0;
+  // Outside forecast window → pending placeholder.
+  if (target && offset > FORECAST_DAYS) {
+    return { status: "pending" };
+  }
+
+  const dayKey = useCurrent ? "current" : localDayKey(target!);
+  const key = `${lat.toFixed(3)},${lng.toFixed(3)}|${dayKey}`;
   if (weatherCache.has(key)) return weatherCache.get(key)!;
   if (weatherInflight.has(key)) return weatherInflight.get(key)!;
-  const p = (async () => {
+
+  const p = (async (): Promise<WeatherInfo> => {
     try {
-      const url = `https://weather.googleapis.com/v1/currentConditions:lookup?key=${GOOGLE_MAPS_API_KEY}&location.latitude=${lat}&location.longitude=${lng}&languageCode=tr`;
+      if (useCurrent) {
+        const url = `https://weather.googleapis.com/v1/currentConditions:lookup?key=${GOOGLE_MAPS_API_KEY}&location.latitude=${lat}&location.longitude=${lng}&languageCode=tr`;
+        const res = await fetch(url);
+        if (!res.ok) return null;
+        const j = await res.json();
+        const tempC = j?.temperature?.degrees;
+        const description = j?.weatherCondition?.description?.text ?? "";
+        const type = j?.weatherCondition?.type ?? "";
+        if (typeof tempC !== "number") return null;
+        return { status: "ok", tempC, description, type };
+      }
+
+      // Daily forecast lookup — request enough days to cover the target.
+      const days = Math.min(FORECAST_DAYS, Math.max(1, offset + 1));
+      const url = `https://weather.googleapis.com/v1/forecast/days:lookup?key=${GOOGLE_MAPS_API_KEY}&location.latitude=${lat}&location.longitude=${lng}&days=${days}&languageCode=tr`;
       const res = await fetch(url);
-      if (!res.ok) {
-        weatherCache.set(key, null);
-        return null;
-      }
+      if (!res.ok) return null;
       const j = await res.json();
-      const tempC = j?.temperature?.degrees;
-      const description = j?.weatherCondition?.description?.text ?? "";
-      const type = j?.weatherCondition?.type ?? "";
-      if (typeof tempC !== "number") {
-        weatherCache.set(key, null);
-        return null;
-      }
-      const data: WeatherInfo = { tempC, description, type };
-      weatherCache.set(key, data);
-      return data;
+      const list: any[] = Array.isArray(j?.forecastDays) ? j.forecastDays : [];
+      const match = list.find((d) => {
+        const dd = d?.displayDate ?? d?.interval?.startTime;
+        if (dd?.year && dd?.month && dd?.day) {
+          const k = `${dd.year}-${String(dd.month).padStart(2, "0")}-${String(dd.day).padStart(2, "0")}`;
+          return k === dayKey;
+        }
+        return false;
+      }) ?? list[offset];
+      if (!match) return { status: "pending" };
+      const part = match.daytimeForecast ?? match.nighttimeForecast ?? {};
+      const tempC =
+        match?.maxTemperature?.degrees ??
+        match?.minTemperature?.degrees ??
+        part?.temperature?.degrees;
+      const description = part?.weatherCondition?.description?.text ?? "";
+      const type = part?.weatherCondition?.type ?? "";
+      if (typeof tempC !== "number") return { status: "pending" };
+      return { status: "ok", tempC, description, type };
     } catch {
-      weatherCache.set(key, null);
       return null;
-    } finally {
-      weatherInflight.delete(key);
     }
-  })();
+  })().then((v) => {
+    weatherCache.set(key, v);
+    weatherInflight.delete(key);
+    return v;
+  });
+
   weatherInflight.set(key, p);
   return p;
 }
@@ -83,31 +148,34 @@ function WeatherIcon({ type, className }: { type: string; className?: string }) 
   return <Cloud className={className} />;
 }
 
-function WeatherBadge({ location }: { location?: { lat: number; lng: number } }) {
+function WeatherBadge({
+  location,
+  targetDate,
+}: {
+  location?: { lat: number; lng: number };
+  targetDate?: Date | null;
+}) {
   const [data, setData] = useState<WeatherInfo>(null);
   const [loading, setLoading] = useState(false);
-  const [failed, setFailed] = useState(false);
+
+  const targetKey = targetDate ? targetDate.getTime() : 0;
 
   useEffect(() => {
     if (!location) {
       setData(null);
-      setFailed(false);
       return;
     }
     let cancelled = false;
     setLoading(true);
-    setFailed(false);
-    fetchWeather(location.lat, location.lng)
+    fetchWeather(location.lat, location.lng, targetDate ?? null)
       .then((w) => {
-        if (cancelled) return;
-        if (!w) setFailed(true);
-        else setData(w);
+        if (!cancelled) setData(w);
       })
       .finally(() => !cancelled && setLoading(false));
     return () => {
       cancelled = true;
     };
-  }, [location?.lat, location?.lng]);
+  }, [location?.lat, location?.lng, targetKey]);
 
   if (!location) return null;
   if (loading) {
@@ -118,7 +186,18 @@ function WeatherBadge({ location }: { location?: { lat: number; lng: number } })
       </div>
     );
   }
-  if (failed || !data) return null;
+  if (!data) return null;
+  if (data.status === "pending") {
+    return (
+      <div
+        className="flex items-center gap-1.5 rounded-lg border border-slate-200/70 bg-slate-50/70 px-2 py-1 text-[11px] font-medium text-slate-400 animate-fade-in"
+        title="Bu tarih tahmin penceresinin dışında"
+      >
+        <Cloud className="h-3.5 w-3.5 text-slate-400" />
+        <span className="font-semibold">Tahmin Bekleniyor</span>
+      </div>
+    );
+  }
   return (
     <div
       className="flex items-center gap-1.5 rounded-lg border border-sky-100 bg-sky-50/70 px-2 py-1 text-[11px] font-medium text-slate-600 animate-fade-in"
