@@ -919,7 +919,16 @@ function StopRow({
           </span>
           <div className="flex items-center gap-2 text-[13px] font-semibold tracking-tight text-slate-700">
             <span>{label}</span>
-            <WeatherBadge location={stop.location} />
+            <WeatherBadge
+              location={stop.location}
+              targetDate={
+                isStart
+                  ? stop.datetime
+                    ? new Date(stop.datetime)
+                    : null
+                  : (eta ?? (stop.datetime ? new Date(stop.datetime) : null))
+              }
+            />
           </div>
         </div>
         <div className="flex items-center gap-1">
