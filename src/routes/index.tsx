@@ -38,9 +38,10 @@ type WeatherOk = {
   tempC: number;
   description: string;
   type: string;
+  approx?: boolean;
 };
-type WeatherPending = { status: "pending" };
-type WeatherInfo = WeatherOk | WeatherPending | null;
+type WeatherInfo = WeatherOk | null;
+
 
 const weatherCache = new Map<string, WeatherInfo>();
 const weatherInflight = new Map<string, Promise<WeatherInfo>>();
@@ -71,19 +72,18 @@ async function fetchWeather(
   const offset = target ? daysFromToday(target) : 0;
   // Past dates or "now" → current conditions.
   const useCurrent = !target || offset <= 0;
-  // Outside forecast window → pending placeholder.
-  if (target && offset > FORECAST_DAYS) {
-    return { status: "pending" };
-  }
+  // Outside forecast window → fall back to current conditions, mark as approximate.
+  const outOfWindow = !!(target && offset > FORECAST_DAYS);
+  const effectiveUseCurrent = useCurrent || outOfWindow;
 
-  const dayKey = useCurrent ? "current" : localDayKey(target!);
+  const dayKey = effectiveUseCurrent ? (outOfWindow ? "approx" : "current") : localDayKey(target!);
   const key = `${lat.toFixed(3)},${lng.toFixed(3)}|${dayKey}`;
   if (weatherCache.has(key)) return weatherCache.get(key)!;
   if (weatherInflight.has(key)) return weatherInflight.get(key)!;
 
   const p = (async (): Promise<WeatherInfo> => {
     try {
-      if (useCurrent) {
+      if (effectiveUseCurrent) {
         const url = `https://weather.googleapis.com/v1/currentConditions:lookup?key=${GOOGLE_MAPS_API_KEY}&location.latitude=${lat}&location.longitude=${lng}&languageCode=tr`;
         const res = await fetch(url);
         if (!res.ok) return null;
@@ -92,7 +92,7 @@ async function fetchWeather(
         const description = j?.weatherCondition?.description?.text ?? "";
         const type = j?.weatherCondition?.type ?? "";
         if (typeof tempC !== "number") return null;
-        return { status: "ok", tempC, description, type };
+        return { status: "ok", tempC, description, type, approx: outOfWindow };
       }
 
       // Daily forecast lookup — request enough days to cover the target.
@@ -109,8 +109,8 @@ async function fetchWeather(
           return k === dayKey;
         }
         return false;
-      }) ?? list[offset];
-      if (!match) return { status: "pending" };
+      }) ?? list[offset] ?? list[list.length - 1];
+      if (!match) return null;
       const part = match.daytimeForecast ?? match.nighttimeForecast ?? {};
       const tempC =
         match?.maxTemperature?.degrees ??
@@ -118,7 +118,7 @@ async function fetchWeather(
         part?.temperature?.degrees;
       const description = part?.weatherCondition?.description?.text ?? "";
       const type = part?.weatherCondition?.type ?? "";
-      if (typeof tempC !== "number") return { status: "pending" };
+      if (typeof tempC !== "number") return null;
       return { status: "ok", tempC, description, type };
     } catch {
       return null;
@@ -132,6 +132,7 @@ async function fetchWeather(
   weatherInflight.set(key, p);
   return p;
 }
+
 
 function WeatherIcon({ type, className }: { type: string; className?: string }) {
   const t = type.toUpperCase();
@@ -187,30 +188,22 @@ function WeatherBadge({
     );
   }
   if (!data) return null;
-  if (data.status === "pending") {
-    return (
-      <div
-        className="flex items-center gap-1.5 rounded-lg border border-slate-200/70 bg-slate-50/70 px-2 py-1 text-[11px] font-medium text-slate-400 animate-fade-in"
-        title="Bu tarih tahmin penceresinin dışında"
-      >
-        <Cloud className="h-3.5 w-3.5 text-slate-400" />
-        <span className="font-semibold">Tahmin Bekleniyor</span>
-      </div>
-    );
-  }
   return (
     <div
       className="flex items-center gap-1.5 rounded-lg border border-sky-100 bg-sky-50/70 px-2 py-1 text-[11px] font-medium text-slate-600 animate-fade-in"
-      title={data.description}
+      title={data.approx ? `${data.description} (yaklaşık)` : data.description}
     >
       <WeatherIcon type={data.type} className="h-3.5 w-3.5 text-sky-600" />
-      <span className="tabular-nums font-semibold text-slate-700">{Math.round(data.tempC)}°C</span>
+      <span className="tabular-nums font-semibold text-slate-700">
+        {data.approx ? "~" : ""}{Math.round(data.tempC)}°C
+      </span>
       {data.description && (
         <span className="hidden text-slate-500 sm:inline">· {data.description}</span>
       )}
     </div>
   );
 }
+
 
 // ============================================================================
 // GOOGLE MAPS API KEY — Buraya kendi Google Maps API anahtarınızı yapıştırın
