@@ -38,9 +38,10 @@ type WeatherOk = {
   tempC: number;
   description: string;
   type: string;
+  approx?: boolean;
 };
-type WeatherPending = { status: "pending" };
-type WeatherInfo = WeatherOk | WeatherPending | null;
+type WeatherInfo = WeatherOk | null;
+
 
 const weatherCache = new Map<string, WeatherInfo>();
 const weatherInflight = new Map<string, Promise<WeatherInfo>>();
