@@ -188,30 +188,22 @@ function WeatherBadge({
     );
   }
   if (!data) return null;
-  if (data.status === "pending") {
-    return (
-      <div
-        className="flex items-center gap-1.5 rounded-lg border border-slate-200/70 bg-slate-50/70 px-2 py-1 text-[11px] font-medium text-slate-400 animate-fade-in"
-        title="Bu tarih tahmin penceresinin dışında"
-      >
-        <Cloud className="h-3.5 w-3.5 text-slate-400" />
-        <span className="font-semibold">Tahmin Bekleniyor</span>
-      </div>
-    );
-  }
   return (
     <div
       className="flex items-center gap-1.5 rounded-lg border border-sky-100 bg-sky-50/70 px-2 py-1 text-[11px] font-medium text-slate-600 animate-fade-in"
-      title={data.description}
+      title={data.approx ? `${data.description} (yaklaşık)` : data.description}
     >
       <WeatherIcon type={data.type} className="h-3.5 w-3.5 text-sky-600" />
-      <span className="tabular-nums font-semibold text-slate-700">{Math.round(data.tempC)}°C</span>
+      <span className="tabular-nums font-semibold text-slate-700">
+        {data.approx ? "~" : ""}{Math.round(data.tempC)}°C
+      </span>
       {data.description && (
         <span className="hidden text-slate-500 sm:inline">· {data.description}</span>
       )}
     </div>
   );
 }
+
 
 // ============================================================================
 // GOOGLE MAPS API KEY — Buraya kendi Google Maps API anahtarınızı yapıştırın
