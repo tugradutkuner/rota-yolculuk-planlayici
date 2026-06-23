@@ -72,19 +72,18 @@ async function fetchWeather(
   const offset = target ? daysFromToday(target) : 0;
   // Past dates or "now" → current conditions.
   const useCurrent = !target || offset <= 0;
-  // Outside forecast window → pending placeholder.
-  if (target && offset > FORECAST_DAYS) {
-    return { status: "pending" };
-  }
+  // Outside forecast window → fall back to current conditions, mark as approximate.
+  const outOfWindow = !!(target && offset > FORECAST_DAYS);
+  const effectiveUseCurrent = useCurrent || outOfWindow;
 
-  const dayKey = useCurrent ? "current" : localDayKey(target!);
+  const dayKey = effectiveUseCurrent ? (outOfWindow ? "approx" : "current") : localDayKey(target!);
   const key = `${lat.toFixed(3)},${lng.toFixed(3)}|${dayKey}`;
   if (weatherCache.has(key)) return weatherCache.get(key)!;
   if (weatherInflight.has(key)) return weatherInflight.get(key)!;
 
   const p = (async (): Promise<WeatherInfo> => {
     try {
-      if (useCurrent) {
+      if (effectiveUseCurrent) {
         const url = `https://weather.googleapis.com/v1/currentConditions:lookup?key=${GOOGLE_MAPS_API_KEY}&location.latitude=${lat}&location.longitude=${lng}&languageCode=tr`;
         const res = await fetch(url);
         if (!res.ok) return null;
@@ -93,7 +92,7 @@ async function fetchWeather(
         const description = j?.weatherCondition?.description?.text ?? "";
         const type = j?.weatherCondition?.type ?? "";
         if (typeof tempC !== "number") return null;
-        return { status: "ok", tempC, description, type };
+        return { status: "ok", tempC, description, type, approx: outOfWindow };
       }
 
       // Daily forecast lookup — request enough days to cover the target.
@@ -110,8 +109,8 @@ async function fetchWeather(
           return k === dayKey;
         }
         return false;
-      }) ?? list[offset];
-      if (!match) return { status: "pending" };
+      }) ?? list[offset] ?? list[list.length - 1];
+      if (!match) return null;
       const part = match.daytimeForecast ?? match.nighttimeForecast ?? {};
       const tempC =
         match?.maxTemperature?.degrees ??
@@ -119,7 +118,7 @@ async function fetchWeather(
         part?.temperature?.degrees;
       const description = part?.weatherCondition?.description?.text ?? "";
       const type = part?.weatherCondition?.type ?? "";
-      if (typeof tempC !== "number") return { status: "pending" };
+      if (typeof tempC !== "number") return null;
       return { status: "ok", tempC, description, type };
     } catch {
       return null;
@@ -133,6 +132,7 @@ async function fetchWeather(
   weatherInflight.set(key, p);
   return p;
 }
+
 
 function WeatherIcon({ type, className }: { type: string; className?: string }) {
   const t = type.toUpperCase();
