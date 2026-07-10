@@ -789,7 +789,7 @@ function RoutePlanner() {
         <button
           onClick={() => setSidebarOpen((v) => !v)}
           aria-label={sidebarOpen ? "Paneli gizle" : "Paneli göster"}
-          className="absolute left-4 top-4 z-10 hidden h-11 w-11 items-center justify-center rounded-full border border-slate-200/60 bg-white/80 text-slate-700 shadow-xl shadow-slate-900/10 backdrop-blur-xl transition-all duration-200 hover:scale-105 hover:bg-white hover:text-indigo-600 active:scale-95 lg:flex transform-gpu"
+          className="absolute left-4 top-4 z-10 hidden h-11 w-11 items-center justify-center rounded-full border border-slate-200/50 bg-white/90 text-slate-600 shadow-xl shadow-violet-500/20 backdrop-blur-xl transition-all duration-300 hover:scale-105 hover:bg-white hover:text-violet-600 hover:shadow-2xl hover:shadow-violet-500/30 active:scale-95 lg:flex transform-gpu"
         >
           {sidebarOpen ? <ChevronLeft className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
         </button>
