@@ -620,8 +620,8 @@ function RoutePlanner() {
   return (
     <div className="relative flex h-screen flex-col bg-gradient-to-br from-slate-50 via-indigo-50/40 to-violet-50/40 text-slate-900 lg:flex-row">
       <aside
-        style={{ backgroundColor: "rgba(255,255,255,0.75)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", willChange: "transform, width" }}
-        className={`flex flex-col overflow-hidden border-slate-200/60 shadow-2xl shadow-slate-900/[0.04] transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] transform-gpu lg:h-screen lg:border-r ${
+        style={{ backgroundColor: "rgba(255,255,255,0.8)", willChange: "transform, width" }}
+        className={`flex flex-col overflow-hidden border-slate-200/50 shadow-2xl shadow-slate-900/[0.04] backdrop-blur-2xl transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] transform-gpu lg:h-screen lg:border-r ${
           sidebarOpen
             ? "w-full border-b lg:w-[440px]"
             : "h-0 w-full border-b-0 lg:h-screen lg:w-0 lg:border-r-0"
