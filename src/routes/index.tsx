@@ -811,8 +811,8 @@ function MetricCard({
 }) {
   const gradient =
     accent === "blue"
-      ? "from-indigo-50 via-white to-violet-50/60"
-      : "from-violet-50 via-white to-fuchsia-50/60";
+      ? "from-violet-50/60 via-white to-blue-50/60"
+      : "from-indigo-50/60 via-white to-violet-50/60";
   const tone =
     accent === "blue"
       ? "text-indigo-600 bg-indigo-100/70"
