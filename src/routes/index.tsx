@@ -819,15 +819,15 @@ function MetricCard({
       : "text-violet-600 bg-violet-100/70";
   return (
     <div
-      className={`group relative overflow-hidden rounded-2xl border border-slate-200/60 bg-gradient-to-br ${gradient} p-4 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md transform-gpu`}
+      className={`group relative overflow-hidden rounded-2xl border border-slate-200/50 bg-gradient-to-br ${gradient} p-5 shadow-sm transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-lg hover:shadow-violet-500/10 transform-gpu`}
     >
       <div className="flex items-center gap-2">
-        <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${tone}`}>{icon}</span>
-        <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+        <span className={`flex h-6 w-6 items-center justify-center rounded-lg ${tone}`}>{icon}</span>
+        <span className="text-sm font-medium text-slate-500">
           {label}
         </span>
       </div>
-      <div key={value} className="mt-3 text-2xl font-bold tabular-nums tracking-tight text-slate-900 animate-fade-in">
+      <div key={value} className="mt-2 text-4xl font-bold tabular-nums tracking-tight text-slate-900 animate-fade-in transform-gpu">
         {value}
       </div>
     </div>
