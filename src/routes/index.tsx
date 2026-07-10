@@ -620,8 +620,8 @@ function RoutePlanner() {
   return (
     <div className="relative flex h-screen flex-col bg-gradient-to-br from-slate-50 via-indigo-50/40 to-violet-50/40 text-slate-900 lg:flex-row">
       <aside
-        style={{ backgroundColor: "rgba(255,255,255,0.75)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", willChange: "transform, width" }}
-        className={`flex flex-col overflow-hidden border-slate-200/60 shadow-2xl shadow-slate-900/[0.04] transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] transform-gpu lg:h-screen lg:border-r ${
+        style={{ backgroundColor: "rgba(255,255,255,0.8)", willChange: "transform, width" }}
+        className={`flex flex-col overflow-hidden border-slate-200/50 shadow-2xl shadow-slate-900/[0.04] backdrop-blur-2xl transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] transform-gpu lg:h-screen lg:border-r ${
           sidebarOpen
             ? "w-full border-b lg:w-[440px]"
             : "h-0 w-full border-b-0 lg:h-screen lg:w-0 lg:border-r-0"
@@ -719,7 +719,7 @@ function RoutePlanner() {
                   <button
                     onClick={generateAdvice}
                     disabled={aiLoading || aiLocked}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-violet-600 via-violet-600 to-fuchsia-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-violet-500/25 transition-all duration-200 hover:shadow-lg hover:shadow-violet-500/40 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 transform-gpu"
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-500/30 transition-all duration-200 hover:shadow-xl hover:shadow-violet-500/40 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-60 transform-gpu"
                   >
                     {aiLoading || aiLocked ? (
                       <>
@@ -737,7 +737,7 @@ function RoutePlanner() {
                     </div>
                   )}
                   {aiText && (
-                    <div className="max-h-80 overflow-y-auto rounded-xl border border-slate-200/70 bg-white p-5 text-[13.5px] leading-[1.75] text-slate-700 shadow-sm animate-fade-in [&_strong]:text-slate-900 [&_ul]:my-2.5 [&_p]:my-2 [&_code]:bg-slate-100">
+                    <div className="max-h-80 overflow-y-auto rounded-xl border border-slate-200/60 bg-white p-6 text-[14px] leading-[1.7] text-slate-700 shadow-sm animate-fade-in [&_strong]:font-semibold [&_strong]:text-slate-900 [&_ul]:my-3 [&_ul]:space-y-1.5 [&_li]:leading-[1.65] [&_p]:my-2.5 [&_code]:rounded [&_code]:bg-slate-100 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[12.5px] [&_code]:text-slate-800 [&_blockquote]:my-3 [&_blockquote]:border-l-[3px] [&_blockquote]:border-violet-300 [&_blockquote]:bg-violet-50/40 [&_blockquote]:py-1 [&_blockquote]:pl-4 [&_blockquote]:text-slate-600 [&_blockquote]:italic">
                       <MiniMarkdown text={aiText} />
                     </div>
                   )}
@@ -751,7 +751,7 @@ function RoutePlanner() {
             <button
               onClick={calculate}
               disabled={!mapReady || calculating}
-              className="group flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-indigo-600 via-violet-600 to-indigo-700 px-4 py-3 text-sm font-semibold tracking-tight text-white shadow-lg shadow-indigo-500/30 transition-all duration-200 hover:shadow-xl hover:shadow-indigo-500/40 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none transform-gpu"
+              className="group flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 px-4 py-3 text-sm font-semibold tracking-tight text-white shadow-lg shadow-indigo-500/30 transition-all duration-200 hover:shadow-xl hover:shadow-indigo-500/40 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none transform-gpu"
             >
               {calculating ? (
                 <>
@@ -789,7 +789,7 @@ function RoutePlanner() {
         <button
           onClick={() => setSidebarOpen((v) => !v)}
           aria-label={sidebarOpen ? "Paneli gizle" : "Paneli göster"}
-          className="absolute left-4 top-4 z-10 hidden h-11 w-11 items-center justify-center rounded-full border border-slate-200/60 bg-white/80 text-slate-700 shadow-xl shadow-slate-900/10 backdrop-blur-xl transition-all duration-200 hover:scale-105 hover:bg-white hover:text-indigo-600 active:scale-95 lg:flex transform-gpu"
+          className="absolute left-4 top-4 z-10 hidden h-11 w-11 items-center justify-center rounded-full border border-slate-200/50 bg-white/90 text-slate-600 shadow-xl shadow-violet-500/20 backdrop-blur-xl transition-all duration-300 hover:scale-105 hover:bg-white hover:text-violet-600 hover:shadow-2xl hover:shadow-violet-500/30 active:scale-95 lg:flex transform-gpu"
         >
           {sidebarOpen ? <ChevronLeft className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
         </button>
@@ -811,23 +811,23 @@ function MetricCard({
 }) {
   const gradient =
     accent === "blue"
-      ? "from-indigo-50 via-white to-violet-50/60"
-      : "from-violet-50 via-white to-fuchsia-50/60";
+      ? "from-violet-50/60 via-white to-blue-50/60"
+      : "from-indigo-50/60 via-white to-violet-50/60";
   const tone =
     accent === "blue"
       ? "text-indigo-600 bg-indigo-100/70"
       : "text-violet-600 bg-violet-100/70";
   return (
     <div
-      className={`group relative overflow-hidden rounded-2xl border border-slate-200/60 bg-gradient-to-br ${gradient} p-4 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md transform-gpu`}
+      className={`group relative overflow-hidden rounded-2xl border border-slate-200/50 bg-gradient-to-br ${gradient} p-5 shadow-sm transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-lg hover:shadow-violet-500/10 transform-gpu`}
     >
       <div className="flex items-center gap-2">
-        <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${tone}`}>{icon}</span>
-        <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+        <span className={`flex h-6 w-6 items-center justify-center rounded-lg ${tone}`}>{icon}</span>
+        <span className="text-sm font-medium text-slate-500">
           {label}
         </span>
       </div>
-      <div key={value} className="mt-3 text-2xl font-bold tabular-nums tracking-tight text-slate-900 animate-fade-in">
+      <div key={value} className="mt-2 text-4xl font-bold tabular-nums tracking-tight text-slate-900 animate-fade-in transform-gpu">
         {value}
       </div>
     </div>
@@ -920,12 +920,12 @@ function StopRow({
         setDraggable(false);
         onDragEnd();
       }}
-      className={`group relative rounded-2xl border bg-white p-4 transition-all duration-200 transform-gpu ${
+      className={`group relative rounded-2xl border border-l-4 bg-white p-4 transition-all duration-300 ease-out transform-gpu ${
         isDragging
-          ? "border-violet-400 opacity-50 shadow-lg"
+          ? "border-violet-400 border-l-violet-500 opacity-50 shadow-lg"
           : isDragOver
-            ? "border-violet-400 ring-2 ring-violet-500/15 shadow-md"
-            : "border-slate-200/70 shadow-sm hover:shadow-md hover:border-slate-300/80"
+            ? "border-violet-400 border-l-violet-500 ring-2 ring-violet-500/15 shadow-md"
+            : "border-slate-200/60 border-l-violet-500/70 shadow-sm hover:shadow-lg hover:shadow-slate-900/[0.06] hover:border-l-violet-600 hover:-translate-y-0.5"
       }`}
     >
       {/* Timeline dot — sits on the dashed connector line */}
@@ -952,7 +952,7 @@ function StopRow({
             onTouchStart={() => setDraggable(true)}
             onTouchEnd={() => setDraggable(false)}
             aria-label="Sürükle"
-            className="cursor-grab touch-none rounded-md p-1 text-slate-300 transition-colors duration-150 hover:bg-slate-100 hover:text-slate-600 active:cursor-grabbing active:text-slate-700"
+            className="cursor-grab touch-none rounded-md p-1 text-slate-400 transition-all duration-200 hover:scale-110 hover:bg-violet-50 hover:text-violet-600 active:cursor-grabbing active:text-violet-700 transform-gpu"
           >
             <GripVertical className="h-4 w-4" />
           </button>
@@ -992,7 +992,7 @@ function StopRow({
           {canRemove && (
             <button
               onClick={onRemove}
-              className="rounded-md p-1 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
+              className="rounded-md p-1 text-slate-400 transition-all duration-200 hover:scale-110 hover:bg-rose-50 hover:text-rose-600 transform-gpu"
               aria-label="Durağı sil"
             >
               <Trash2 className="h-4 w-4" />
@@ -1003,14 +1003,14 @@ function StopRow({
 
       <div className="space-y-2.5">
         <div className="relative">
-          <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 transition-colors" />
+          <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-violet-500" />
           <input
             ref={inputRef}
             type="text"
             value={stop.address}
             onChange={(e) => onChange({ address: e.target.value })}
             placeholder="Adres girin..."
-            className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 pl-9 pr-3 text-sm font-medium text-slate-800 placeholder:font-normal placeholder:text-slate-400 outline-none transition-all duration-200 focus:border-violet-500 focus:bg-white focus:ring-2 focus:ring-violet-500/10"
+            className="w-full rounded-xl border-0 bg-slate-50/70 py-2.5 pl-9 pr-3 text-sm font-medium text-slate-800 placeholder:font-normal placeholder:text-slate-400 outline-none ring-1 ring-transparent transition-all duration-200 focus:bg-white focus:ring-2 focus:ring-violet-500/40"
           />
         </div>
 
@@ -1025,7 +1025,7 @@ function StopRow({
               value={stop.datetime}
               onChange={(e) => onChange({ datetime: e.target.value })}
               aria-label={depLabel}
-              className="w-full rounded-xl border border-slate-200/60 bg-white/40 py-2.5 pl-10 pr-3 text-sm font-semibold tabular-nums tracking-tight text-transparent outline-none transition-all duration-200 focus:border-violet-500 focus:bg-white focus:ring-4 focus:ring-violet-500/15 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:m-0 [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-datetime-edit]:opacity-0"
+              className="w-full rounded-xl border-0 bg-slate-50/70 py-2.5 pl-10 pr-3 text-sm font-semibold tabular-nums tracking-tight text-transparent outline-none ring-1 ring-transparent transition-all duration-200 focus:bg-white focus:ring-2 focus:ring-violet-500/40 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:m-0 [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-datetime-edit]:opacity-0"
             />
             <span
               className={`pointer-events-none absolute left-10 right-3 top-1/2 -translate-y-1/2 truncate text-sm font-semibold ${
