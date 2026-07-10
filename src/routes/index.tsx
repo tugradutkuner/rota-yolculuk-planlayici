@@ -1003,14 +1003,14 @@ function StopRow({
 
       <div className="space-y-2.5">
         <div className="relative">
-          <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 transition-colors" />
+          <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-violet-500" />
           <input
             ref={inputRef}
             type="text"
             value={stop.address}
             onChange={(e) => onChange({ address: e.target.value })}
             placeholder="Adres girin..."
-            className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 pl-9 pr-3 text-sm font-medium text-slate-800 placeholder:font-normal placeholder:text-slate-400 outline-none transition-all duration-200 focus:border-violet-500 focus:bg-white focus:ring-2 focus:ring-violet-500/10"
+            className="w-full rounded-xl border-0 bg-slate-50/70 py-2.5 pl-9 pr-3 text-sm font-medium text-slate-800 placeholder:font-normal placeholder:text-slate-400 outline-none ring-1 ring-transparent transition-all duration-200 focus:bg-white focus:ring-2 focus:ring-violet-500/40"
           />
         </div>
 
