@@ -992,7 +992,7 @@ function StopRow({
           {canRemove && (
             <button
               onClick={onRemove}
-              className="rounded-md p-1 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
+              className="rounded-md p-1 text-slate-400 transition-all duration-200 hover:scale-110 hover:bg-rose-50 hover:text-rose-600 transform-gpu"
               aria-label="Durağı sil"
             >
               <Trash2 className="h-4 w-4" />
