@@ -952,7 +952,7 @@ function StopRow({
             onTouchStart={() => setDraggable(true)}
             onTouchEnd={() => setDraggable(false)}
             aria-label="Sürükle"
-            className="cursor-grab touch-none rounded-md p-1 text-slate-300 transition-colors duration-150 hover:bg-slate-100 hover:text-slate-600 active:cursor-grabbing active:text-slate-700"
+            className="cursor-grab touch-none rounded-md p-1 text-slate-400 transition-all duration-200 hover:scale-110 hover:bg-violet-50 hover:text-violet-600 active:cursor-grabbing active:text-violet-700 transform-gpu"
           >
             <GripVertical className="h-4 w-4" />
           </button>
