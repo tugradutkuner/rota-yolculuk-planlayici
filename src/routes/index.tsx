@@ -920,12 +920,12 @@ function StopRow({
         setDraggable(false);
         onDragEnd();
       }}
-      className={`group relative rounded-2xl border bg-white p-4 transition-all duration-200 transform-gpu ${
+      className={`group relative rounded-2xl border border-l-4 bg-white p-4 transition-all duration-300 ease-out transform-gpu ${
         isDragging
-          ? "border-violet-400 opacity-50 shadow-lg"
+          ? "border-violet-400 border-l-violet-500 opacity-50 shadow-lg"
           : isDragOver
-            ? "border-violet-400 ring-2 ring-violet-500/15 shadow-md"
-            : "border-slate-200/70 shadow-sm hover:shadow-md hover:border-slate-300/80"
+            ? "border-violet-400 border-l-violet-500 ring-2 ring-violet-500/15 shadow-md"
+            : "border-slate-200/60 border-l-violet-500/70 shadow-sm hover:shadow-lg hover:shadow-slate-900/[0.06] hover:border-l-violet-600 hover:-translate-y-0.5"
       }`}
     >
       {/* Timeline dot — sits on the dashed connector line */}
