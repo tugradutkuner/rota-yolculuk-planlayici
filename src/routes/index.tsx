@@ -1025,7 +1025,7 @@ function StopRow({
               value={stop.datetime}
               onChange={(e) => onChange({ datetime: e.target.value })}
               aria-label={depLabel}
-              className="w-full rounded-xl border border-slate-200/60 bg-white/40 py-2.5 pl-10 pr-3 text-sm font-semibold tabular-nums tracking-tight text-transparent outline-none transition-all duration-200 focus:border-violet-500 focus:bg-white focus:ring-4 focus:ring-violet-500/15 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:m-0 [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-datetime-edit]:opacity-0"
+              className="w-full rounded-xl border-0 bg-slate-50/70 py-2.5 pl-10 pr-3 text-sm font-semibold tabular-nums tracking-tight text-transparent outline-none ring-1 ring-transparent transition-all duration-200 focus:bg-white focus:ring-2 focus:ring-violet-500/40 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:m-0 [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-datetime-edit]:opacity-0"
             />
             <span
               className={`pointer-events-none absolute left-10 right-3 top-1/2 -translate-y-1/2 truncate text-sm font-semibold ${
