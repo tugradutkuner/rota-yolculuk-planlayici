@@ -737,7 +737,7 @@ function RoutePlanner() {
                     </div>
                   )}
                   {aiText && (
-                    <div className="max-h-80 overflow-y-auto rounded-xl border border-slate-200/70 bg-white p-5 text-[13.5px] leading-[1.75] text-slate-700 shadow-sm animate-fade-in [&_strong]:text-slate-900 [&_ul]:my-2.5 [&_p]:my-2 [&_code]:bg-slate-100">
+                    <div className="max-h-80 overflow-y-auto rounded-xl border border-slate-200/60 bg-white p-6 text-[14px] leading-[1.7] text-slate-700 shadow-sm animate-fade-in [&_strong]:font-semibold [&_strong]:text-slate-900 [&_ul]:my-3 [&_ul]:space-y-1.5 [&_li]:leading-[1.65] [&_p]:my-2.5 [&_code]:rounded [&_code]:bg-slate-100 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[12.5px] [&_code]:text-slate-800 [&_blockquote]:my-3 [&_blockquote]:border-l-[3px] [&_blockquote]:border-violet-300 [&_blockquote]:bg-violet-50/40 [&_blockquote]:py-1 [&_blockquote]:pl-4 [&_blockquote]:text-slate-600 [&_blockquote]:italic">
                       <MiniMarkdown text={aiText} />
                     </div>
                   )}
