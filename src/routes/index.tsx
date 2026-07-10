@@ -719,7 +719,7 @@ function RoutePlanner() {
                   <button
                     onClick={generateAdvice}
                     disabled={aiLoading || aiLocked}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-violet-600 via-violet-600 to-fuchsia-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-violet-500/25 transition-all duration-200 hover:shadow-lg hover:shadow-violet-500/40 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 transform-gpu"
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-500/30 transition-all duration-200 hover:shadow-xl hover:shadow-violet-500/40 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-60 transform-gpu"
                   >
                     {aiLoading || aiLocked ? (
                       <>
