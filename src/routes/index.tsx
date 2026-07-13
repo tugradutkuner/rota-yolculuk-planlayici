@@ -290,6 +290,37 @@ type Stop = {
 
 type Metrics = { distanceKm: number; durationMin: number } | null;
 
+interface SavedTrip {
+  id: string;
+  title: string;
+  createdAt: string;
+  stops: Stop[];
+  metrics: { distance: string; duration: string };
+}
+
+const SAVED_TRIPS_KEY = "trip_planner_saved_trips";
+
+function loadSavedTrips(): SavedTrip[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(SAVED_TRIPS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistSavedTrips(trips: SavedTrip[]) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(SAVED_TRIPS_KEY, JSON.stringify(trips));
+  } catch {
+    /* ignore quota */
+  }
+}
+
 const uid = () => Math.random().toString(36).slice(2, 9);
 
 declare global {
