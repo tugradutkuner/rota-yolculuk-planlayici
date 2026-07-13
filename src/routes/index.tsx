@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { generateTravelAdvice } from "@/lib/ai-advice.functions";
 import {
   MapPin,
@@ -25,6 +26,11 @@ import {
   CloudLightning,
   CloudFog,
   CloudSun,
+  Bookmark,
+  FolderOpen,
+  Inbox,
+  X,
+  Check,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
