@@ -892,26 +892,38 @@ function RoutePlanner() {
               )}
             </div>
           </div>
+          )}
 
-
+          {activeTab === "new" && (
           <div className="border-t border-slate-200/60 bg-white/70 p-5 backdrop-blur">
-            <button
-              onClick={calculate}
-              disabled={!mapReady || calculating}
-              className="group flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 px-4 py-3 text-sm font-semibold tracking-tight text-white shadow-lg shadow-indigo-500/30 transition-all duration-200 hover:shadow-xl hover:shadow-indigo-500/40 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none transform-gpu"
-            >
-              {calculating ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" /> Hesaplanıyor...
-                </>
-              ) : (
-                <>
-                  <Navigation className="h-4 w-4 transition group-hover:translate-x-0.5" />
-                  Rotayı Hesapla
-                </>
-              )}
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={openSaveModal}
+                className="group flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold tracking-tight text-slate-700 shadow-sm transition-all duration-200 hover:border-violet-300 hover:bg-violet-50 hover:text-violet-700 active:scale-[0.97] transform-gpu"
+                title="Bu geziyi kaydet"
+              >
+                <Bookmark className="h-4 w-4 transition group-hover:scale-110" />
+                <span className="hidden sm:inline">Geziyi Kaydet</span>
+              </button>
+              <button
+                onClick={calculate}
+                disabled={!mapReady || calculating}
+                className="group flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 px-4 py-3 text-sm font-semibold tracking-tight text-white shadow-lg shadow-indigo-500/30 transition-all duration-200 hover:shadow-xl hover:shadow-indigo-500/40 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none transform-gpu"
+              >
+                {calculating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" /> Hesaplanıyor...
+                  </>
+                ) : (
+                  <>
+                    <Navigation className="h-4 w-4 transition group-hover:translate-x-0.5" />
+                    Rotayı Hesapla
+                  </>
+                )}
+              </button>
+            </div>
           </div>
+          )}
         </div>
       </aside>
 
