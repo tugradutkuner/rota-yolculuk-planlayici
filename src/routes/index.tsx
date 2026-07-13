@@ -742,6 +742,49 @@ function RoutePlanner() {
             </div>
           </header>
 
+          <div className="border-b border-slate-200/60 px-6 pt-4 pb-3">
+            <div className="relative flex items-center gap-1 rounded-xl bg-slate-100/80 p-1 shadow-inner">
+              <span
+                aria-hidden
+                className="absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-lg bg-white shadow-sm shadow-slate-900/10 ring-1 ring-slate-200/60 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] transform-gpu"
+                style={{ transform: `translateX(${activeTab === "new" ? "0%" : "100%"})` }}
+              />
+              <button
+                type="button"
+                onClick={() => setActiveTab("new")}
+                className={`relative z-[1] flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-semibold transition-colors duration-200 ${
+                  activeTab === "new" ? "text-violet-700" : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                <Navigation className="h-3.5 w-3.5" /> Yeni Rota
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("trips")}
+                className={`relative z-[1] flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-semibold transition-colors duration-200 ${
+                  activeTab === "trips" ? "text-violet-700" : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                <Bookmark className="h-3.5 w-3.5" /> Gezilerim
+                {savedTrips.length > 0 && (
+                  <span className="ml-0.5 rounded-full bg-violet-100 px-1.5 py-0.5 text-[10px] font-bold text-violet-700">
+                    {savedTrips.length}
+                  </span>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {activeTab === "trips" ? (
+            <SavedTripsPanel
+              trips={savedTrips}
+              confirmDeleteId={confirmDeleteId}
+              setConfirmDeleteId={setConfirmDeleteId}
+              onLoad={loadTrip}
+              onDelete={deleteTrip}
+              onNew={() => setActiveTab("new")}
+            />
+          ) : (
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
             <div className="grid grid-cols-2 gap-3">
               <MetricCard
