@@ -469,6 +469,68 @@ function RoutePlanner() {
     };
   }, []);
 
+  useEffect(() => {
+    setSavedTrips(loadSavedTrips());
+  }, []);
+
+  const commitSavedTrips = (next: SavedTrip[]) => {
+    setSavedTrips(next);
+    persistSavedTrips(next);
+  };
+
+  const openSaveModal = () => {
+    const filled = stops.filter((s) => s.address.trim().length > 0);
+    if (filled.length < 2) {
+      toast.error("Kaydetmek için en az 2 dolu durak gereklidir.");
+      return;
+    }
+    const defaultTitle = `Gezi • ${new Date().toLocaleDateString("tr-TR", {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+    })}`;
+    setSaveTitle(defaultTitle);
+    setSaveModalOpen(true);
+  };
+
+  const confirmSaveTrip = () => {
+    const title = saveTitle.trim();
+    if (!title) {
+      toast.error("Lütfen bir gezi başlığı girin.");
+      return;
+    }
+    const trip: SavedTrip = {
+      id: uid(),
+      title,
+      createdAt: new Date().toISOString(),
+      stops: stops.map((s) => ({ ...s })),
+      metrics: {
+        distance: metrics ? `${metrics.distanceKm.toFixed(1)} km` : "—",
+        duration: metrics ? formatDuration(metrics.durationMin) : "—",
+      },
+    };
+    commitSavedTrips([trip, ...savedTrips]);
+    setSaveModalOpen(false);
+    setSaveTitle("");
+    toast.success("Gezi başarıyla kaydedildi!");
+  };
+
+  const loadTrip = (trip: SavedTrip) => {
+    setStops(trip.stops.map((s) => ({ ...s, id: s.id || uid() })));
+    setMetrics(null);
+    setLegDurations([]);
+    setStatusMsg("Kayıtlı gezi yüklendi. Güncel rota için 'Rotayı Hesapla' butonunu kullanın.");
+    setActiveTab("new");
+    toast.success(`"${trip.title}" yüklendi.`);
+  };
+
+  const deleteTrip = (id: string) => {
+    commitSavedTrips(savedTrips.filter((t) => t.id !== id));
+    setConfirmDeleteId(null);
+    toast.success("Gezi silindi.");
+  };
+
+
   const addStop = () => setStops((s) => [...s, { id: uid(), address: "", datetime: "" }]);
   const removeStop = (id: string) =>
     setStops((s) => (s.length <= 2 ? s : s.filter((x) => x.id !== id)));
