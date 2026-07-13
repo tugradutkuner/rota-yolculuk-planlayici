@@ -953,9 +953,194 @@ function RoutePlanner() {
           {sidebarOpen ? <ChevronLeft className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
         </button>
       </section>
+
+      {saveModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm animate-fade-in"
+          onClick={() => setSaveModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-slate-200/60 bg-white/95 p-6 shadow-2xl backdrop-blur-2xl transform-gpu"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-500/30">
+                <Bookmark className="h-5 w-5" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-base font-bold text-slate-900">Geziyi Kaydet</h3>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Bu rota, duraklar ve zamanlar tarayıcınıza kaydedilecek.
+                </p>
+              </div>
+              <button
+                onClick={() => setSaveModalOpen(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                aria-label="Kapat"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-[0.1em] text-slate-500">
+              Gezi Başlığı
+            </label>
+            <input
+              autoFocus
+              value={saveTitle}
+              onChange={(e) => setSaveTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") confirmSaveTrip();
+                if (e.key === "Escape") setSaveModalOpen(false);
+              }}
+              placeholder="Örn. Balkan Turu 2026"
+              className="w-full rounded-xl border-0 bg-slate-50/70 px-4 py-3 text-sm text-slate-800 outline-none ring-1 ring-slate-200 transition placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-violet-500/40"
+            />
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={() => setSaveModalOpen(false)}
+                className="rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100"
+              >
+                İptal
+              </button>
+              <button
+                onClick={confirmSaveTrip}
+                className="flex items-center gap-2 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-500/30 transition-all duration-200 hover:shadow-xl hover:shadow-violet-500/40 active:scale-[0.97] transform-gpu"
+              >
+                <Check className="h-4 w-4" /> Kaydet
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
+function SavedTripsPanel({
+  trips,
+  confirmDeleteId,
+  setConfirmDeleteId,
+  onLoad,
+  onDelete,
+  onNew,
+}: {
+  trips: SavedTrip[];
+  confirmDeleteId: string | null;
+  setConfirmDeleteId: (id: string | null) => void;
+  onLoad: (t: SavedTrip) => void;
+  onDelete: (id: string) => void;
+  onNew: () => void;
+}) {
+  const fmtDate = (iso: string) => {
+    try {
+      const d = new Date(iso);
+      return d.toLocaleDateString("tr-TR", {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+      });
+    } catch {
+      return "";
+    }
+  };
+
+  if (trips.length === 0) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto p-10 text-center animate-fade-in">
+        <div className="mb-5 flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-violet-100 via-indigo-50 to-fuchsia-100 text-violet-500 shadow-inner">
+          <Inbox className="h-9 w-9" />
+        </div>
+        <h3 className="text-[15px] font-bold text-slate-800">Henüz kayıtlı gezi yok</h3>
+        <p className="mt-2 max-w-[280px] text-[13px] leading-relaxed text-slate-500">
+          Henüz kaydedilmiş bir geziniz yok. İlk rotanızı oluşturup hemen kaydedin!
+        </p>
+        <button
+          onClick={onNew}
+          className="mt-6 flex items-center gap-2 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-500/30 transition-all duration-200 hover:shadow-xl hover:shadow-violet-500/40 active:scale-[0.97] transform-gpu"
+        >
+          <Plus className="h-4 w-4" /> Yeni Rota Oluştur
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 overflow-y-auto p-6 space-y-3">
+      <div className="mb-1 flex items-center justify-between">
+        <h2 className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-500">
+          Kayıtlı Geziler
+        </h2>
+        <span className="text-[11px] font-medium text-slate-400">{trips.length} gezi</span>
+      </div>
+      {trips.map((trip) => {
+        const filledStops = trip.stops.filter((s) => s.address.trim().length > 0);
+        const isConfirming = confirmDeleteId === trip.id;
+        return (
+          <div
+            key={trip.id}
+            className="group relative overflow-hidden rounded-2xl border border-slate-200/70 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-lg hover:shadow-violet-500/10 transform-gpu"
+          >
+            <div className="mb-2 flex items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <h3 className="truncate text-[14px] font-bold tracking-tight text-slate-900">
+                  {trip.title}
+                </h3>
+                <p className="mt-0.5 text-[11px] font-medium text-slate-400">
+                  {fmtDate(trip.createdAt)}
+                </p>
+              </div>
+              {isConfirming ? (
+                <div className="flex items-center gap-1 rounded-lg bg-rose-50 p-0.5 ring-1 ring-rose-200">
+                  <button
+                    onClick={() => onDelete(trip.id)}
+                    className="rounded-md bg-rose-600 px-2 py-1 text-[11px] font-bold text-white transition hover:bg-rose-700"
+                  >
+                    Sil
+                  </button>
+                  <button
+                    onClick={() => setConfirmDeleteId(null)}
+                    className="rounded-md px-2 py-1 text-[11px] font-semibold text-rose-700 transition hover:bg-rose-100"
+                  >
+                    Vazgeç
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setConfirmDeleteId(trip.id)}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-300 transition hover:bg-rose-50 hover:text-rose-500"
+                  aria-label="Sil"
+                  title="Geziyi sil"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold">
+              <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2.5 py-1 text-violet-700 ring-1 ring-violet-100">
+                <MapPin className="h-3 w-3" /> {filledStops.length} Durak
+              </span>
+              <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-blue-700 ring-1 ring-blue-100">
+                <RouteIcon className="h-3 w-3" /> {trip.metrics.distance}
+              </span>
+              <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-1 text-indigo-700 ring-1 ring-indigo-100">
+                <Clock className="h-3 w-3" /> {trip.metrics.duration}
+              </span>
+            </div>
+
+            <button
+              onClick={() => onLoad(trip)}
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-[13px] font-semibold text-white shadow-sm transition-all duration-200 hover:bg-slate-800 hover:shadow-md active:scale-[0.98] transform-gpu"
+            >
+              <FolderOpen className="h-4 w-4" /> Yükle
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 
 function MetricCard({
   icon,
