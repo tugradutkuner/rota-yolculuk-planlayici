@@ -1449,54 +1449,58 @@ function StopRow({
         </div>
       </div>
 
-      <div className="space-y-2.5">
-        <div className="relative">
-          <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-violet-500" />
-          <input
-            ref={inputRef}
-            type="text"
-            value={stop.address}
-            onChange={(e) => onChange({ address: e.target.value })}
-            placeholder="Adres girin..."
-            className="w-full rounded-xl border-0 bg-slate-50/70 py-2.5 pl-9 pr-3 text-sm font-medium text-slate-800 placeholder:font-normal placeholder:text-slate-400 outline-none ring-1 ring-transparent transition-all duration-200 focus:bg-white focus:ring-2 focus:ring-violet-500/40"
-          />
-        </div>
-
-        {showDepartureInput && (
-          <div className="group/time relative">
-            <span className="pointer-events-none absolute -top-2 left-3 z-10 rounded-md bg-white px-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-500">
-              {depLabel}
-            </span>
-            <Clock className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-violet-500/80 transition-colors group-focus-within/time:text-violet-600" />
+      <div className="flex gap-3">
+        <StopThumbnail placeId={stop.placeId} location={stop.location} />
+        <div className="min-w-0 flex-1 space-y-2.5">
+          <div className="relative">
+            <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-violet-500" />
             <input
-              type="datetime-local"
-              value={stop.datetime}
-              onChange={(e) => onChange({ datetime: e.target.value })}
-              aria-label={depLabel}
-              className="w-full rounded-xl border-0 bg-slate-50/70 py-2.5 pl-10 pr-3 text-sm font-semibold tabular-nums tracking-tight text-transparent outline-none ring-1 ring-transparent transition-all duration-200 focus:bg-white focus:ring-2 focus:ring-violet-500/40 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:m-0 [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-datetime-edit]:opacity-0"
+              ref={inputRef}
+              type="text"
+              value={stop.address}
+              onChange={(e) => onChange({ address: e.target.value })}
+              placeholder="Adres girin..."
+              className="w-full rounded-xl border-0 bg-slate-50/70 py-2.5 pl-9 pr-3 text-sm font-medium text-slate-800 placeholder:font-normal placeholder:text-slate-400 outline-none ring-1 ring-transparent transition-all duration-200 focus:bg-white focus:ring-2 focus:ring-violet-500/40"
             />
-            <span
-              className={`pointer-events-none absolute left-10 right-3 top-1/2 -translate-y-1/2 truncate text-sm font-semibold ${
-                stop.datetime ? "text-slate-800" : "font-medium text-slate-400"
-              }`}
-            >
-              {stop.datetime
-                ? fmtSmartTR(new Date(stop.datetime))
-                : "Yolculuk başlangıç zamanını seçin..."}
-            </span>
           </div>
-        )}
 
-        {stop.noteOpen && (
-          <textarea
-            value={stop.note ?? ""}
-            onChange={(e) => onChange({ note: e.target.value })}
-            placeholder="Bu durağa özel notlar (otel, hatırlatma, alışveriş...)"
-            rows={2}
-            className="w-full resize-none rounded-lg border border-amber-200 bg-amber-50/60 px-2.5 py-1.5 text-xs text-slate-700 outline-none transition focus:border-amber-400 focus:bg-white focus:ring-4 focus:ring-amber-100"
-          />
-        )}
+          {showDepartureInput && (
+            <div className="group/time relative">
+              <span className="pointer-events-none absolute -top-2 left-3 z-10 rounded-md bg-white px-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-500">
+                {depLabel}
+              </span>
+              <Clock className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-violet-500/80 transition-colors group-focus-within/time:text-violet-600" />
+              <input
+                type="datetime-local"
+                value={stop.datetime}
+                onChange={(e) => onChange({ datetime: e.target.value })}
+                aria-label={depLabel}
+                className="w-full rounded-xl border-0 bg-slate-50/70 py-2.5 pl-10 pr-3 text-sm font-semibold tabular-nums tracking-tight text-transparent outline-none ring-1 ring-transparent transition-all duration-200 focus:bg-white focus:ring-2 focus:ring-violet-500/40 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:m-0 [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-datetime-edit]:opacity-0"
+              />
+              <span
+                className={`pointer-events-none absolute left-10 right-3 top-1/2 -translate-y-1/2 truncate text-sm font-semibold ${
+                  stop.datetime ? "text-slate-800" : "font-medium text-slate-400"
+                }`}
+              >
+                {stop.datetime
+                  ? fmtSmartTR(new Date(stop.datetime))
+                  : "Yolculuk başlangıç zamanını seçin..."}
+              </span>
+            </div>
+          )}
+
+          {stop.noteOpen && (
+            <textarea
+              value={stop.note ?? ""}
+              onChange={(e) => onChange({ note: e.target.value })}
+              placeholder="Bu durağa özel notlar (otel, hatırlatma, alışveriş...)"
+              rows={2}
+              className="w-full resize-none rounded-lg border border-amber-200 bg-amber-50/60 px-2.5 py-1.5 text-xs text-slate-700 outline-none transition focus:border-amber-400 focus:bg-white focus:ring-4 focus:ring-amber-100"
+            />
+          )}
+        </div>
       </div>
+
     </div>
   );
 }
