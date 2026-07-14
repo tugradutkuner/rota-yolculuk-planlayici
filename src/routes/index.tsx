@@ -1178,6 +1178,110 @@ function MetricCard({
   );
 }
 
+// Thumbnail: Places API (New) photo → Street View Static fallback → MapPin placeholder.
+const photoUrlCache = new Map<string, string>();
+function StopThumbnail({ placeId, location }: { placeId?: string; location?: { lat: number; lng: number } }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setFailed(false);
+    if (!placeId && !location) {
+      setUrl(null);
+      return;
+    }
+    const cacheKey = placeId ?? `${location!.lat.toFixed(4)},${location!.lng.toFixed(4)}`;
+    const cached = photoUrlCache.get(cacheKey);
+    if (cached) {
+      setUrl(cached);
+      return;
+    }
+    const streetView = location
+      ? `https://maps.googleapis.com/maps/api/streetview?size=160x160&location=${location.lat},${location.lng}&fov=80&key=${GOOGLE_MAPS_API_KEY}`
+      : null;
+    setLoading(true);
+    (async () => {
+      try {
+        if (placeId) {
+          const res = await fetch(
+            `https://places.googleapis.com/v1/places/${placeId}?key=${GOOGLE_MAPS_API_KEY}&languageCode=tr`,
+            { headers: { "X-Goog-FieldMask": "photos.name" } },
+          );
+          if (res.ok) {
+            const j = await res.json();
+            const name = j?.photos?.[0]?.name;
+            if (name) {
+              const photoUrl = `https://places.googleapis.com/v1/${name}/media?maxHeightPx=200&maxWidthPx=200&key=${GOOGLE_MAPS_API_KEY}`;
+              photoUrlCache.set(cacheKey, photoUrl);
+              if (!cancelled) {
+                setUrl(photoUrl);
+                setLoading(false);
+              }
+              return;
+            }
+          }
+        }
+        if (streetView) {
+          photoUrlCache.set(cacheKey, streetView);
+          if (!cancelled) {
+            setUrl(streetView);
+            setLoading(false);
+          }
+          return;
+        }
+        if (!cancelled) {
+          setUrl(null);
+          setLoading(false);
+        }
+      } catch {
+        if (!cancelled) {
+          if (streetView) {
+            setUrl(streetView);
+          } else {
+            setFailed(true);
+          }
+          setLoading(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [placeId, location?.lat, location?.lng]);
+
+  const base =
+    "relative h-16 w-16 shrink-0 overflow-hidden rounded-xl ring-1 ring-slate-200/70 bg-gradient-to-br from-slate-100 to-slate-50";
+
+  if (loading) {
+    return (
+      <div className={`${base} animate-pulse`}>
+        <div className="absolute inset-0 bg-gradient-to-r from-slate-100 via-slate-200/70 to-slate-100 bg-[length:200%_100%] animate-[shimmer_1.4s_infinite]" />
+      </div>
+    );
+  }
+  if (url && !failed) {
+    return (
+      <div className={base}>
+        <img
+          src={url}
+          alt=""
+          loading="lazy"
+          onError={() => setFailed(true)}
+          className="h-full w-full object-cover transform-gpu transition-transform duration-500 hover:scale-105"
+        />
+      </div>
+    );
+  }
+  return (
+    <div className={`${base} flex items-center justify-center`}>
+      <MapPin className="h-5 w-5 text-slate-400" />
+    </div>
+  );
+}
+
+
 function StopRow({
   index,
   total,
