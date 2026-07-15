@@ -329,6 +329,147 @@ function persistSavedTrips(trips: SavedTrip[]) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Simulated Auth + Public Shared Feed (localStorage-backed social layer).
+// ---------------------------------------------------------------------------
+interface AppUser {
+  username: string;
+  bio: string;
+  avatarUrl: string;
+}
+
+interface SharedTrip {
+  id: string;
+  title: string;
+  description: string;
+  publishedAt: string;
+  publisher: AppUser;
+  stops: Stop[];
+  metrics: { distance: string; duration: string };
+  likes: number;
+  likedByMe?: boolean;
+}
+
+const AUTH_KEY = "trip_planner_current_user";
+const FEED_KEY = "public_shared_feed";
+
+const AVATAR_PALETTE = [
+  "6366f1,ffffff", "8b5cf6,ffffff", "ec4899,ffffff",
+  "f97316,ffffff", "10b981,ffffff", "0ea5e9,ffffff",
+];
+function avatarFor(username: string): string {
+  const hash = Array.from(username).reduce((a, c) => a + c.charCodeAt(0), 0);
+  const palette = AVATAR_PALETTE[hash % AVATAR_PALETTE.length];
+  const [bg, fg] = palette.split(",");
+  return `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=${bg}&color=${fg}&bold=true&size=128`;
+}
+
+function loadCurrentUser(): AppUser | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(AUTH_KEY);
+    return raw ? (JSON.parse(raw) as AppUser) : null;
+  } catch {
+    return null;
+  }
+}
+function persistCurrentUser(u: AppUser | null) {
+  if (typeof window === "undefined") return;
+  try {
+    if (u) window.localStorage.setItem(AUTH_KEY, JSON.stringify(u));
+    else window.localStorage.removeItem(AUTH_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+const SEED_FEED: SharedTrip[] = [
+  {
+    id: "seed-ege",
+    title: "Ege Kıyıları Kaçamağı",
+    description: "İzmir'den başlayıp Çeşme, Alaçatı ve Kuşadası'nda mola vererek Bodrum'a inen 3 günlük rüya rota. Deniz, mezeler ve gün batımları eşliğinde.",
+    publishedAt: new Date(Date.now() - 3 * 86_400_000).toISOString(),
+    publisher: {
+      username: "deniz.gezgin",
+      bio: "Kıyı yolları koleksiyoncusu",
+      avatarUrl: avatarFor("deniz.gezgin"),
+    },
+    stops: [
+      { id: uidLocal(), address: "İzmir, Türkiye", datetime: "" },
+      { id: uidLocal(), address: "Çeşme, İzmir, Türkiye", datetime: "" },
+      { id: uidLocal(), address: "Kuşadası, Aydın, Türkiye", datetime: "" },
+      { id: uidLocal(), address: "Bodrum, Muğla, Türkiye", datetime: "" },
+    ],
+    metrics: { distance: "412.6 km", duration: "5 sa 40 dk" },
+    likes: 128,
+  },
+  {
+    id: "seed-alp",
+    title: "Alp Dağları Sürüşü",
+    description: "İnnsbruck'tan Zürih'e, virajlı dağ yollarında panoramik bir Avrupa turu. Fotoğraf molaları kaçırılmamalı!",
+    publishedAt: new Date(Date.now() - 7 * 86_400_000).toISOString(),
+    publisher: {
+      username: "mira.wanders",
+      bio: "Dağ yolu meraklısı",
+      avatarUrl: avatarFor("mira.wanders"),
+    },
+    stops: [
+      { id: uidLocal(), address: "Innsbruck, Avusturya", datetime: "" },
+      { id: uidLocal(), address: "St. Moritz, İsviçre", datetime: "" },
+      { id: uidLocal(), address: "Andermatt, İsviçre", datetime: "" },
+      { id: uidLocal(), address: "Zürih, İsviçre", datetime: "" },
+    ],
+    metrics: { distance: "486.2 km", duration: "7 sa 15 dk" },
+    likes: 214,
+  },
+  {
+    id: "seed-kapadokya",
+    title: "Kapadokya & İç Anadolu",
+    description: "Ankara'dan başlayıp Tuz Gölü ve Aksaray üzerinden peri bacalarına ulaşan sakin bir hafta sonu rotası.",
+    publishedAt: new Date(Date.now() - 12 * 86_400_000).toISOString(),
+    publisher: {
+      username: "anadolu.notlari",
+      bio: "Sessiz rotalar, uzun sohbetler",
+      avatarUrl: avatarFor("anadolu.notlari"),
+    },
+    stops: [
+      { id: uidLocal(), address: "Ankara, Türkiye", datetime: "" },
+      { id: uidLocal(), address: "Tuz Gölü, Türkiye", datetime: "" },
+      { id: uidLocal(), address: "Aksaray, Türkiye", datetime: "" },
+      { id: uidLocal(), address: "Göreme, Nevşehir, Türkiye", datetime: "" },
+    ],
+    metrics: { distance: "329.4 km", duration: "4 sa 20 dk" },
+    likes: 87,
+  },
+];
+
+function uidLocal() {
+  return Math.random().toString(36).slice(2, 9);
+}
+
+function loadFeed(): SharedTrip[] {
+  if (typeof window === "undefined") return SEED_FEED;
+  try {
+    const raw = window.localStorage.getItem(FEED_KEY);
+    if (!raw) {
+      window.localStorage.setItem(FEED_KEY, JSON.stringify(SEED_FEED));
+      return SEED_FEED;
+    }
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length ? parsed : SEED_FEED;
+  } catch {
+    return SEED_FEED;
+  }
+}
+function persistFeed(feed: SharedTrip[]) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(FEED_KEY, JSON.stringify(feed));
+  } catch {
+    /* ignore */
+  }
+}
+
 const uid = () => Math.random().toString(36).slice(2, 9);
 
 declare global {
