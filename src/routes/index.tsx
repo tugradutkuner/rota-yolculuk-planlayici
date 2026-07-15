@@ -688,6 +688,95 @@ function RoutePlanner() {
     toast.success("Gezi silindi.");
   };
 
+  // ── Auth handlers ────────────────────────────────────────────────────
+  useEffect(() => {
+    setCurrentUser(loadCurrentUser());
+    setFeed(loadFeed());
+  }, []);
+
+  const openLogin = () => {
+    setLoginName("");
+    setLoginOpen(true);
+  };
+  const confirmLogin = () => {
+    const name = loginName.trim() || "gezgin.dev";
+    const user: AppUser = {
+      username: name,
+      bio: "Rotalarını topluluğa açan gezgin.",
+      avatarUrl: avatarFor(name),
+    };
+    setCurrentUser(user);
+    persistCurrentUser(user);
+    setLoginOpen(false);
+    setUserMenuOpen(false);
+    toast.success(`Hoş geldin, @${user.username}!`);
+  };
+  const logout = () => {
+    setCurrentUser(null);
+    persistCurrentUser(null);
+    setUserMenuOpen(false);
+    toast.success("Çıkış yapıldı.");
+  };
+
+  // ── Feed handlers ────────────────────────────────────────────────────
+  const commitFeed = (next: SharedTrip[]) => {
+    setFeed(next);
+    persistFeed(next);
+  };
+
+  const openShareModal = (trip: SavedTrip) => {
+    if (!currentUser) {
+      toast.error("Paylaşmak için önce giriş yapmalısın.");
+      openLogin();
+      return;
+    }
+    setShareTrip(trip);
+    setShareDesc("");
+  };
+  const confirmShareTrip = () => {
+    if (!shareTrip || !currentUser) return;
+    const shared: SharedTrip = {
+      id: uid(),
+      title: shareTrip.title,
+      description: shareDesc.trim() || "Yeni bir rota paylaştım — beğenirseniz kopyalayın!",
+      publishedAt: new Date().toISOString(),
+      publisher: currentUser,
+      stops: shareTrip.stops.map((s) => ({ ...s })),
+      metrics: shareTrip.metrics,
+      likes: 0,
+    };
+    commitFeed([shared, ...feed]);
+    setShareTrip(null);
+    setShareDesc("");
+    toast.success("Gezi toplulukta paylaşıldı!");
+  };
+
+  const toggleLike = (id: string) => {
+    commitFeed(
+      feed.map((t) =>
+        t.id === id
+          ? { ...t, likedByMe: !t.likedByMe, likes: t.likes + (t.likedByMe ? -1 : 1) }
+          : t,
+      ),
+    );
+  };
+
+  const cloneSharedTrip = (trip: SharedTrip) => {
+    setStops(trip.stops.map((s) => ({ ...s, id: uid() })));
+    setMetrics(null);
+    setLegDurations([]);
+    setActiveTab("new");
+    setStatusMsg(`"${trip.title}" rotası kendi planına kopyalandı. Hesaplamak için 'Rotayı Hesapla' butonunu kullan.`);
+    toast.success(`"${trip.title}" rotan kopyalandı!`);
+  };
+
+  const switchToDiscover = () => {
+    setActiveTab("discover");
+    setFeedLoading(true);
+    setTimeout(() => setFeedLoading(false), 550);
+  };
+
+
 
   const addStop = () => setStops((s) => [...s, { id: uid(), address: "", datetime: "" }]);
   const removeStop = (id: string) =>
