@@ -1360,7 +1360,124 @@ function RoutePlanner() {
           </div>
         </div>
       )}
+
+      {loginOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm animate-fade-in"
+          onClick={() => setLoginOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-white/60 bg-white/80 p-6 shadow-2xl backdrop-blur-2xl transform-gpu ring-1 ring-slate-200/60"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-500/30">
+                <LogIn className="h-5 w-5" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-base font-bold text-slate-900">Topluluğa Katıl</h3>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Bir kullanıcı adı seç ve rotalarını paylaşmaya başla.
+                </p>
+              </div>
+              <button
+                onClick={() => setLoginOpen(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                aria-label="Kapat"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-[0.1em] text-slate-500">
+              Kullanıcı Adı
+            </label>
+            <input
+              autoFocus
+              value={loginName}
+              onChange={(e) => setLoginName(e.target.value.replace(/\s+/g, "."))}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") confirmLogin();
+                if (e.key === "Escape") setLoginOpen(false);
+              }}
+              placeholder="örn. gezgin.dev"
+              className="w-full rounded-xl border-0 bg-slate-50/70 px-4 py-3 text-sm text-slate-800 outline-none ring-1 ring-slate-200 transition placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-violet-500/40"
+            />
+            <p className="mt-2 text-[11px] text-slate-400">
+              Boş bırakırsan @gezgin.dev olarak giriş yapılır.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={() => setLoginOpen(false)}
+                className="rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100"
+              >
+                İptal
+              </button>
+              <button
+                onClick={confirmLogin}
+                className="flex items-center gap-2 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-500/30 transition-all duration-200 hover:shadow-xl hover:shadow-violet-500/40 active:scale-[0.97] transform-gpu"
+              >
+                <LogIn className="h-4 w-4" /> Giriş Yap
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {shareTrip && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm animate-fade-in"
+          onClick={() => setShareTrip(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-white/60 bg-white/85 p-6 shadow-2xl backdrop-blur-2xl transform-gpu ring-1 ring-slate-200/60"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-500/30">
+                <Share2 className="h-5 w-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="truncate text-base font-bold text-slate-900">Toplulukta Paylaş</h3>
+                <p className="mt-0.5 truncate text-xs text-slate-500">"{shareTrip.title}"</p>
+              </div>
+              <button
+                onClick={() => setShareTrip(null)}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                aria-label="Kapat"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-[0.1em] text-slate-500">
+              Kısa Açıklama
+            </label>
+            <textarea
+              autoFocus
+              rows={3}
+              value={shareDesc}
+              onChange={(e) => setShareDesc(e.target.value)}
+              placeholder="Örn. Yaz için mükemmel Balkan rotası!"
+              className="w-full resize-none rounded-xl border-0 bg-slate-50/70 px-4 py-3 text-sm text-slate-800 outline-none ring-1 ring-slate-200 transition placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-violet-500/40"
+            />
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={() => setShareTrip(null)}
+                className="rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100"
+              >
+                İptal
+              </button>
+              <button
+                onClick={confirmShareTrip}
+                className="flex items-center gap-2 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-500/30 transition-all duration-200 hover:shadow-xl hover:shadow-violet-500/40 active:scale-[0.97] transform-gpu"
+              >
+                <Share2 className="h-4 w-4" /> Paylaş
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+
   );
 }
 
