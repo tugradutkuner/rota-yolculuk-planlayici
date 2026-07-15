@@ -1222,6 +1222,84 @@ function RoutePlanner() {
         >
           {sidebarOpen ? <ChevronLeft className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
         </button>
+
+        {/* Top-right auth affordance */}
+        <div className="absolute right-4 top-4 z-20">
+          {currentUser ? (
+            <div className="relative">
+              <button
+                onClick={() => setUserMenuOpen((v) => !v)}
+                className="flex items-center gap-2 rounded-full border border-slate-200/60 bg-white/90 py-1 pl-1 pr-3 text-[13px] font-semibold text-slate-700 shadow-xl shadow-violet-500/10 backdrop-blur-xl transition-all duration-200 hover:bg-white hover:shadow-2xl hover:shadow-violet-500/20 active:scale-[0.97] transform-gpu"
+              >
+                <img
+                  src={currentUser.avatarUrl}
+                  alt={currentUser.username}
+                  className="h-8 w-8 rounded-full ring-2 ring-white"
+                />
+                <span className="hidden max-w-[120px] truncate sm:inline">@{currentUser.username}</span>
+                <ChevronDown
+                  className={`h-4 w-4 text-slate-400 transition-transform ${userMenuOpen ? "rotate-180" : ""}`}
+                />
+              </button>
+              {userMenuOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={() => setUserMenuOpen(false)}
+                  />
+                  <div className="absolute right-0 mt-2 w-64 origin-top-right rounded-2xl border border-slate-200/60 bg-white/95 p-2 shadow-2xl backdrop-blur-2xl animate-fade-in z-20">
+                    <div className="flex items-center gap-3 rounded-xl px-3 py-3">
+                      <img
+                        src={currentUser.avatarUrl}
+                        alt={currentUser.username}
+                        className="h-11 w-11 rounded-full ring-2 ring-violet-100"
+                      />
+                      <div className="min-w-0">
+                        <p className="truncate text-[13px] font-bold text-slate-900">
+                          @{currentUser.username}
+                        </p>
+                        <p className="truncate text-[11px] text-slate-500">{currentUser.bio}</p>
+                      </div>
+                    </div>
+                    <div className="my-1 h-px bg-slate-100" />
+                    <button
+                      onClick={() => {
+                        setUserMenuOpen(false);
+                        toast("Profil sayfası yakında geliyor ✨");
+                      }}
+                      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium text-slate-700 transition hover:bg-violet-50 hover:text-violet-700"
+                    >
+                      <UserIcon className="h-4 w-4" /> Profilim
+                    </button>
+                    <button
+                      onClick={() => {
+                        setUserMenuOpen(false);
+                        setActiveTab("trips");
+                      }}
+                      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium text-slate-700 transition hover:bg-violet-50 hover:text-violet-700"
+                    >
+                      <Bookmark className="h-4 w-4" /> Gezilerim
+                    </button>
+                    <div className="my-1 h-px bg-slate-100" />
+                    <button
+                      onClick={logout}
+                      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium text-rose-600 transition hover:bg-rose-50"
+                    >
+                      <LogOut className="h-4 w-4" /> Çıkış Yap
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          ) : (
+            <button
+              onClick={openLogin}
+              className="flex items-center gap-2 rounded-full bg-gradient-to-br from-violet-600 to-indigo-600 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-violet-500/30 transition-all duration-200 hover:shadow-xl hover:shadow-violet-500/40 active:scale-[0.97] transform-gpu"
+            >
+              <LogIn className="h-4 w-4" /> Giriş Yap
+            </button>
+          )}
+        </div>
       </section>
 
       {saveModalOpen && (
