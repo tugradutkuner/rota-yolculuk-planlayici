@@ -993,13 +993,17 @@ function RoutePlanner() {
             <div className="relative flex items-center gap-1 rounded-xl bg-slate-100/80 p-1 shadow-inner">
               <span
                 aria-hidden
-                className="absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-lg bg-white shadow-sm shadow-slate-900/10 ring-1 ring-slate-200/60 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] transform-gpu"
-                style={{ transform: `translateX(${activeTab === "new" ? "0%" : "100%"})` }}
+                className="absolute top-1 bottom-1 w-[calc(33.333%-3px)] rounded-lg bg-white shadow-sm shadow-slate-900/10 ring-1 ring-slate-200/60 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] transform-gpu"
+                style={{
+                  transform: `translateX(${
+                    activeTab === "new" ? "0%" : activeTab === "trips" ? "100%" : "200%"
+                  })`,
+                }}
               />
               <button
                 type="button"
                 onClick={() => setActiveTab("new")}
-                className={`relative z-[1] flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-semibold transition-colors duration-200 ${
+                className={`relative z-[1] flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[12.5px] font-semibold transition-colors duration-200 ${
                   activeTab === "new" ? "text-violet-700" : "text-slate-500 hover:text-slate-700"
                 }`}
               >
@@ -1008,7 +1012,7 @@ function RoutePlanner() {
               <button
                 type="button"
                 onClick={() => setActiveTab("trips")}
-                className={`relative z-[1] flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-semibold transition-colors duration-200 ${
+                className={`relative z-[1] flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[12.5px] font-semibold transition-colors duration-200 ${
                   activeTab === "trips" ? "text-violet-700" : "text-slate-500 hover:text-slate-700"
                 }`}
               >
@@ -1018,6 +1022,15 @@ function RoutePlanner() {
                     {savedTrips.length}
                   </span>
                 )}
+              </button>
+              <button
+                type="button"
+                onClick={switchToDiscover}
+                className={`relative z-[1] flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[12.5px] font-semibold transition-colors duration-200 ${
+                  activeTab === "discover" ? "text-violet-700" : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                <Compass className="h-3.5 w-3.5" /> Keşfet
               </button>
             </div>
           </div>
@@ -1029,7 +1042,17 @@ function RoutePlanner() {
               setConfirmDeleteId={setConfirmDeleteId}
               onLoad={loadTrip}
               onDelete={deleteTrip}
+              onShare={openShareModal}
               onNew={() => setActiveTab("new")}
+            />
+          ) : activeTab === "discover" ? (
+            <DiscoverPanel
+              feed={feed}
+              loading={feedLoading}
+              currentUser={currentUser}
+              onLike={toggleLike}
+              onClone={cloneSharedTrip}
+              onLoginPrompt={openLogin}
             />
           ) : (
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
