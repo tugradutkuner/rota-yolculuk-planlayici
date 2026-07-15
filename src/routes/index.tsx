@@ -31,6 +31,14 @@ import {
   Inbox,
   X,
   Check,
+  LogIn,
+  LogOut,
+  User as UserIcon,
+  Heart,
+  Copy,
+  Share2,
+  Globe,
+  Compass,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -321,6 +329,147 @@ function persistSavedTrips(trips: SavedTrip[]) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Simulated Auth + Public Shared Feed (localStorage-backed social layer).
+// ---------------------------------------------------------------------------
+interface AppUser {
+  username: string;
+  bio: string;
+  avatarUrl: string;
+}
+
+interface SharedTrip {
+  id: string;
+  title: string;
+  description: string;
+  publishedAt: string;
+  publisher: AppUser;
+  stops: Stop[];
+  metrics: { distance: string; duration: string };
+  likes: number;
+  likedByMe?: boolean;
+}
+
+const AUTH_KEY = "trip_planner_current_user";
+const FEED_KEY = "public_shared_feed";
+
+const AVATAR_PALETTE = [
+  "6366f1,ffffff", "8b5cf6,ffffff", "ec4899,ffffff",
+  "f97316,ffffff", "10b981,ffffff", "0ea5e9,ffffff",
+];
+function avatarFor(username: string): string {
+  const hash = Array.from(username).reduce((a, c) => a + c.charCodeAt(0), 0);
+  const palette = AVATAR_PALETTE[hash % AVATAR_PALETTE.length];
+  const [bg, fg] = palette.split(",");
+  return `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=${bg}&color=${fg}&bold=true&size=128`;
+}
+
+function loadCurrentUser(): AppUser | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(AUTH_KEY);
+    return raw ? (JSON.parse(raw) as AppUser) : null;
+  } catch {
+    return null;
+  }
+}
+function persistCurrentUser(u: AppUser | null) {
+  if (typeof window === "undefined") return;
+  try {
+    if (u) window.localStorage.setItem(AUTH_KEY, JSON.stringify(u));
+    else window.localStorage.removeItem(AUTH_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+const SEED_FEED: SharedTrip[] = [
+  {
+    id: "seed-ege",
+    title: "Ege Kıyıları Kaçamağı",
+    description: "İzmir'den başlayıp Çeşme, Alaçatı ve Kuşadası'nda mola vererek Bodrum'a inen 3 günlük rüya rota. Deniz, mezeler ve gün batımları eşliğinde.",
+    publishedAt: new Date(Date.now() - 3 * 86_400_000).toISOString(),
+    publisher: {
+      username: "deniz.gezgin",
+      bio: "Kıyı yolları koleksiyoncusu",
+      avatarUrl: avatarFor("deniz.gezgin"),
+    },
+    stops: [
+      { id: uidLocal(), address: "İzmir, Türkiye", datetime: "" },
+      { id: uidLocal(), address: "Çeşme, İzmir, Türkiye", datetime: "" },
+      { id: uidLocal(), address: "Kuşadası, Aydın, Türkiye", datetime: "" },
+      { id: uidLocal(), address: "Bodrum, Muğla, Türkiye", datetime: "" },
+    ],
+    metrics: { distance: "412.6 km", duration: "5 sa 40 dk" },
+    likes: 128,
+  },
+  {
+    id: "seed-alp",
+    title: "Alp Dağları Sürüşü",
+    description: "İnnsbruck'tan Zürih'e, virajlı dağ yollarında panoramik bir Avrupa turu. Fotoğraf molaları kaçırılmamalı!",
+    publishedAt: new Date(Date.now() - 7 * 86_400_000).toISOString(),
+    publisher: {
+      username: "mira.wanders",
+      bio: "Dağ yolu meraklısı",
+      avatarUrl: avatarFor("mira.wanders"),
+    },
+    stops: [
+      { id: uidLocal(), address: "Innsbruck, Avusturya", datetime: "" },
+      { id: uidLocal(), address: "St. Moritz, İsviçre", datetime: "" },
+      { id: uidLocal(), address: "Andermatt, İsviçre", datetime: "" },
+      { id: uidLocal(), address: "Zürih, İsviçre", datetime: "" },
+    ],
+    metrics: { distance: "486.2 km", duration: "7 sa 15 dk" },
+    likes: 214,
+  },
+  {
+    id: "seed-kapadokya",
+    title: "Kapadokya & İç Anadolu",
+    description: "Ankara'dan başlayıp Tuz Gölü ve Aksaray üzerinden peri bacalarına ulaşan sakin bir hafta sonu rotası.",
+    publishedAt: new Date(Date.now() - 12 * 86_400_000).toISOString(),
+    publisher: {
+      username: "anadolu.notlari",
+      bio: "Sessiz rotalar, uzun sohbetler",
+      avatarUrl: avatarFor("anadolu.notlari"),
+    },
+    stops: [
+      { id: uidLocal(), address: "Ankara, Türkiye", datetime: "" },
+      { id: uidLocal(), address: "Tuz Gölü, Türkiye", datetime: "" },
+      { id: uidLocal(), address: "Aksaray, Türkiye", datetime: "" },
+      { id: uidLocal(), address: "Göreme, Nevşehir, Türkiye", datetime: "" },
+    ],
+    metrics: { distance: "329.4 km", duration: "4 sa 20 dk" },
+    likes: 87,
+  },
+];
+
+function uidLocal() {
+  return Math.random().toString(36).slice(2, 9);
+}
+
+function loadFeed(): SharedTrip[] {
+  if (typeof window === "undefined") return SEED_FEED;
+  try {
+    const raw = window.localStorage.getItem(FEED_KEY);
+    if (!raw) {
+      window.localStorage.setItem(FEED_KEY, JSON.stringify(SEED_FEED));
+      return SEED_FEED;
+    }
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length ? parsed : SEED_FEED;
+  } catch {
+    return SEED_FEED;
+  }
+}
+function persistFeed(feed: SharedTrip[]) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(FEED_KEY, JSON.stringify(feed));
+  } catch {
+    /* ignore */
+  }
+}
+
 const uid = () => Math.random().toString(36).slice(2, 9);
 
 declare global {
@@ -399,11 +548,20 @@ function RoutePlanner() {
   const [aiLocked, setAiLocked] = useState(false);
   const [aiText, setAiText] = useState<string | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"new" | "trips">("new");
+  const [activeTab, setActiveTab] = useState<"new" | "trips" | "discover">("new");
   const [savedTrips, setSavedTrips] = useState<SavedTrip[]>([]);
   const [saveModalOpen, setSaveModalOpen] = useState(false);
   const [saveTitle, setSaveTitle] = useState("");
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  // ── Social layer state ───────────────────────────────────────────────
+  const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
+  const [loginOpen, setLoginOpen] = useState(false);
+  const [loginName, setLoginName] = useState("");
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [feed, setFeed] = useState<SharedTrip[]>([]);
+  const [feedLoading, setFeedLoading] = useState(false);
+  const [shareTrip, setShareTrip] = useState<SavedTrip | null>(null);
+  const [shareDesc, setShareDesc] = useState("");
   const callAdvice = useServerFn(generateTravelAdvice);
 
   const mapDivRef = useRef<HTMLDivElement>(null);
@@ -529,6 +687,95 @@ function RoutePlanner() {
     setConfirmDeleteId(null);
     toast.success("Gezi silindi.");
   };
+
+  // ── Auth handlers ────────────────────────────────────────────────────
+  useEffect(() => {
+    setCurrentUser(loadCurrentUser());
+    setFeed(loadFeed());
+  }, []);
+
+  const openLogin = () => {
+    setLoginName("");
+    setLoginOpen(true);
+  };
+  const confirmLogin = () => {
+    const name = loginName.trim() || "gezgin.dev";
+    const user: AppUser = {
+      username: name,
+      bio: "Rotalarını topluluğa açan gezgin.",
+      avatarUrl: avatarFor(name),
+    };
+    setCurrentUser(user);
+    persistCurrentUser(user);
+    setLoginOpen(false);
+    setUserMenuOpen(false);
+    toast.success(`Hoş geldin, @${user.username}!`);
+  };
+  const logout = () => {
+    setCurrentUser(null);
+    persistCurrentUser(null);
+    setUserMenuOpen(false);
+    toast.success("Çıkış yapıldı.");
+  };
+
+  // ── Feed handlers ────────────────────────────────────────────────────
+  const commitFeed = (next: SharedTrip[]) => {
+    setFeed(next);
+    persistFeed(next);
+  };
+
+  const openShareModal = (trip: SavedTrip) => {
+    if (!currentUser) {
+      toast.error("Paylaşmak için önce giriş yapmalısın.");
+      openLogin();
+      return;
+    }
+    setShareTrip(trip);
+    setShareDesc("");
+  };
+  const confirmShareTrip = () => {
+    if (!shareTrip || !currentUser) return;
+    const shared: SharedTrip = {
+      id: uid(),
+      title: shareTrip.title,
+      description: shareDesc.trim() || "Yeni bir rota paylaştım — beğenirseniz kopyalayın!",
+      publishedAt: new Date().toISOString(),
+      publisher: currentUser,
+      stops: shareTrip.stops.map((s) => ({ ...s })),
+      metrics: shareTrip.metrics,
+      likes: 0,
+    };
+    commitFeed([shared, ...feed]);
+    setShareTrip(null);
+    setShareDesc("");
+    toast.success("Gezi toplulukta paylaşıldı!");
+  };
+
+  const toggleLike = (id: string) => {
+    commitFeed(
+      feed.map((t) =>
+        t.id === id
+          ? { ...t, likedByMe: !t.likedByMe, likes: t.likes + (t.likedByMe ? -1 : 1) }
+          : t,
+      ),
+    );
+  };
+
+  const cloneSharedTrip = (trip: SharedTrip) => {
+    setStops(trip.stops.map((s) => ({ ...s, id: uid() })));
+    setMetrics(null);
+    setLegDurations([]);
+    setActiveTab("new");
+    setStatusMsg(`"${trip.title}" rotası kendi planına kopyalandı. Hesaplamak için 'Rotayı Hesapla' butonunu kullan.`);
+    toast.success(`"${trip.title}" rotan kopyalandı!`);
+  };
+
+  const switchToDiscover = () => {
+    setActiveTab("discover");
+    setFeedLoading(true);
+    setTimeout(() => setFeedLoading(false), 550);
+  };
+
 
 
   const addStop = () => setStops((s) => [...s, { id: uid(), address: "", datetime: "" }]);
@@ -746,13 +993,17 @@ function RoutePlanner() {
             <div className="relative flex items-center gap-1 rounded-xl bg-slate-100/80 p-1 shadow-inner">
               <span
                 aria-hidden
-                className="absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-lg bg-white shadow-sm shadow-slate-900/10 ring-1 ring-slate-200/60 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] transform-gpu"
-                style={{ transform: `translateX(${activeTab === "new" ? "0%" : "100%"})` }}
+                className="absolute top-1 bottom-1 w-[calc(33.333%-3px)] rounded-lg bg-white shadow-sm shadow-slate-900/10 ring-1 ring-slate-200/60 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] transform-gpu"
+                style={{
+                  transform: `translateX(${
+                    activeTab === "new" ? "0%" : activeTab === "trips" ? "100%" : "200%"
+                  })`,
+                }}
               />
               <button
                 type="button"
                 onClick={() => setActiveTab("new")}
-                className={`relative z-[1] flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-semibold transition-colors duration-200 ${
+                className={`relative z-[1] flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[12.5px] font-semibold transition-colors duration-200 ${
                   activeTab === "new" ? "text-violet-700" : "text-slate-500 hover:text-slate-700"
                 }`}
               >
@@ -761,7 +1012,7 @@ function RoutePlanner() {
               <button
                 type="button"
                 onClick={() => setActiveTab("trips")}
-                className={`relative z-[1] flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-semibold transition-colors duration-200 ${
+                className={`relative z-[1] flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[12.5px] font-semibold transition-colors duration-200 ${
                   activeTab === "trips" ? "text-violet-700" : "text-slate-500 hover:text-slate-700"
                 }`}
               >
@@ -771,6 +1022,15 @@ function RoutePlanner() {
                     {savedTrips.length}
                   </span>
                 )}
+              </button>
+              <button
+                type="button"
+                onClick={switchToDiscover}
+                className={`relative z-[1] flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[12.5px] font-semibold transition-colors duration-200 ${
+                  activeTab === "discover" ? "text-violet-700" : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                <Compass className="h-3.5 w-3.5" /> Keşfet
               </button>
             </div>
           </div>
@@ -782,7 +1042,17 @@ function RoutePlanner() {
               setConfirmDeleteId={setConfirmDeleteId}
               onLoad={loadTrip}
               onDelete={deleteTrip}
+              onShare={openShareModal}
               onNew={() => setActiveTab("new")}
+            />
+          ) : activeTab === "discover" ? (
+            <DiscoverPanel
+              feed={feed}
+              loading={feedLoading}
+              currentUser={currentUser}
+              onLike={toggleLike}
+              onClone={cloneSharedTrip}
+              onLoginPrompt={openLogin}
             />
           ) : (
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
@@ -952,6 +1222,84 @@ function RoutePlanner() {
         >
           {sidebarOpen ? <ChevronLeft className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
         </button>
+
+        {/* Top-right auth affordance */}
+        <div className="absolute right-4 top-4 z-20">
+          {currentUser ? (
+            <div className="relative">
+              <button
+                onClick={() => setUserMenuOpen((v) => !v)}
+                className="flex items-center gap-2 rounded-full border border-slate-200/60 bg-white/90 py-1 pl-1 pr-3 text-[13px] font-semibold text-slate-700 shadow-xl shadow-violet-500/10 backdrop-blur-xl transition-all duration-200 hover:bg-white hover:shadow-2xl hover:shadow-violet-500/20 active:scale-[0.97] transform-gpu"
+              >
+                <img
+                  src={currentUser.avatarUrl}
+                  alt={currentUser.username}
+                  className="h-8 w-8 rounded-full ring-2 ring-white"
+                />
+                <span className="hidden max-w-[120px] truncate sm:inline">@{currentUser.username}</span>
+                <ChevronDown
+                  className={`h-4 w-4 text-slate-400 transition-transform ${userMenuOpen ? "rotate-180" : ""}`}
+                />
+              </button>
+              {userMenuOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={() => setUserMenuOpen(false)}
+                  />
+                  <div className="absolute right-0 mt-2 w-64 origin-top-right rounded-2xl border border-slate-200/60 bg-white/95 p-2 shadow-2xl backdrop-blur-2xl animate-fade-in z-20">
+                    <div className="flex items-center gap-3 rounded-xl px-3 py-3">
+                      <img
+                        src={currentUser.avatarUrl}
+                        alt={currentUser.username}
+                        className="h-11 w-11 rounded-full ring-2 ring-violet-100"
+                      />
+                      <div className="min-w-0">
+                        <p className="truncate text-[13px] font-bold text-slate-900">
+                          @{currentUser.username}
+                        </p>
+                        <p className="truncate text-[11px] text-slate-500">{currentUser.bio}</p>
+                      </div>
+                    </div>
+                    <div className="my-1 h-px bg-slate-100" />
+                    <button
+                      onClick={() => {
+                        setUserMenuOpen(false);
+                        toast("Profil sayfası yakında geliyor ✨");
+                      }}
+                      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium text-slate-700 transition hover:bg-violet-50 hover:text-violet-700"
+                    >
+                      <UserIcon className="h-4 w-4" /> Profilim
+                    </button>
+                    <button
+                      onClick={() => {
+                        setUserMenuOpen(false);
+                        setActiveTab("trips");
+                      }}
+                      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium text-slate-700 transition hover:bg-violet-50 hover:text-violet-700"
+                    >
+                      <Bookmark className="h-4 w-4" /> Gezilerim
+                    </button>
+                    <div className="my-1 h-px bg-slate-100" />
+                    <button
+                      onClick={logout}
+                      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium text-rose-600 transition hover:bg-rose-50"
+                    >
+                      <LogOut className="h-4 w-4" /> Çıkış Yap
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          ) : (
+            <button
+              onClick={openLogin}
+              className="flex items-center gap-2 rounded-full bg-gradient-to-br from-violet-600 to-indigo-600 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-violet-500/30 transition-all duration-200 hover:shadow-xl hover:shadow-violet-500/40 active:scale-[0.97] transform-gpu"
+            >
+              <LogIn className="h-4 w-4" /> Giriş Yap
+            </button>
+          )}
+        </div>
       </section>
 
       {saveModalOpen && (
@@ -1012,7 +1360,124 @@ function RoutePlanner() {
           </div>
         </div>
       )}
+
+      {loginOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm animate-fade-in"
+          onClick={() => setLoginOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-white/60 bg-white/80 p-6 shadow-2xl backdrop-blur-2xl transform-gpu ring-1 ring-slate-200/60"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-500/30">
+                <LogIn className="h-5 w-5" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-base font-bold text-slate-900">Topluluğa Katıl</h3>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Bir kullanıcı adı seç ve rotalarını paylaşmaya başla.
+                </p>
+              </div>
+              <button
+                onClick={() => setLoginOpen(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                aria-label="Kapat"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-[0.1em] text-slate-500">
+              Kullanıcı Adı
+            </label>
+            <input
+              autoFocus
+              value={loginName}
+              onChange={(e) => setLoginName(e.target.value.replace(/\s+/g, "."))}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") confirmLogin();
+                if (e.key === "Escape") setLoginOpen(false);
+              }}
+              placeholder="örn. gezgin.dev"
+              className="w-full rounded-xl border-0 bg-slate-50/70 px-4 py-3 text-sm text-slate-800 outline-none ring-1 ring-slate-200 transition placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-violet-500/40"
+            />
+            <p className="mt-2 text-[11px] text-slate-400">
+              Boş bırakırsan @gezgin.dev olarak giriş yapılır.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={() => setLoginOpen(false)}
+                className="rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100"
+              >
+                İptal
+              </button>
+              <button
+                onClick={confirmLogin}
+                className="flex items-center gap-2 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-500/30 transition-all duration-200 hover:shadow-xl hover:shadow-violet-500/40 active:scale-[0.97] transform-gpu"
+              >
+                <LogIn className="h-4 w-4" /> Giriş Yap
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {shareTrip && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm animate-fade-in"
+          onClick={() => setShareTrip(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-white/60 bg-white/85 p-6 shadow-2xl backdrop-blur-2xl transform-gpu ring-1 ring-slate-200/60"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-500/30">
+                <Share2 className="h-5 w-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="truncate text-base font-bold text-slate-900">Toplulukta Paylaş</h3>
+                <p className="mt-0.5 truncate text-xs text-slate-500">"{shareTrip.title}"</p>
+              </div>
+              <button
+                onClick={() => setShareTrip(null)}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                aria-label="Kapat"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-[0.1em] text-slate-500">
+              Kısa Açıklama
+            </label>
+            <textarea
+              autoFocus
+              rows={3}
+              value={shareDesc}
+              onChange={(e) => setShareDesc(e.target.value)}
+              placeholder="Örn. Yaz için mükemmel Balkan rotası!"
+              className="w-full resize-none rounded-xl border-0 bg-slate-50/70 px-4 py-3 text-sm text-slate-800 outline-none ring-1 ring-slate-200 transition placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-violet-500/40"
+            />
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={() => setShareTrip(null)}
+                className="rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100"
+              >
+                İptal
+              </button>
+              <button
+                onClick={confirmShareTrip}
+                className="flex items-center gap-2 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-500/30 transition-all duration-200 hover:shadow-xl hover:shadow-violet-500/40 active:scale-[0.97] transform-gpu"
+              >
+                <Share2 className="h-4 w-4" /> Paylaş
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+
   );
 }
 
@@ -1022,6 +1487,7 @@ function SavedTripsPanel({
   setConfirmDeleteId,
   onLoad,
   onDelete,
+  onShare,
   onNew,
 }: {
   trips: SavedTrip[];
@@ -1029,6 +1495,7 @@ function SavedTripsPanel({
   setConfirmDeleteId: (id: string | null) => void;
   onLoad: (t: SavedTrip) => void;
   onDelete: (id: string) => void;
+  onShare: (t: SavedTrip) => void;
   onNew: () => void;
 }) {
   const fmtDate = (iso: string) => {
@@ -1128,18 +1595,192 @@ function SavedTripsPanel({
               </span>
             </div>
 
-            <button
-              onClick={() => onLoad(trip)}
-              className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-[13px] font-semibold text-white shadow-sm transition-all duration-200 hover:bg-slate-800 hover:shadow-md active:scale-[0.98] transform-gpu"
-            >
-              <FolderOpen className="h-4 w-4" /> Yükle
-            </button>
+            <div className="mt-3 flex gap-2">
+              <button
+                onClick={() => onLoad(trip)}
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-[13px] font-semibold text-white shadow-sm transition-all duration-200 hover:bg-slate-800 hover:shadow-md active:scale-[0.98] transform-gpu"
+              >
+                <FolderOpen className="h-4 w-4" /> Yükle
+              </button>
+              <button
+                onClick={() => onShare(trip)}
+                className="flex items-center justify-center gap-2 rounded-xl border border-violet-200 bg-gradient-to-br from-violet-50 to-indigo-50 px-3 py-2 text-[13px] font-semibold text-violet-700 shadow-sm transition-all duration-200 hover:border-violet-300 hover:from-violet-100 hover:to-indigo-100 hover:shadow-md active:scale-[0.98] transform-gpu"
+                title="Toplulukta paylaş"
+              >
+                <Share2 className="h-4 w-4" /> Toplulukta Paylaş
+              </button>
+            </div>
           </div>
         );
       })}
     </div>
   );
 }
+
+function DiscoverPanel({
+  feed,
+  loading,
+  currentUser,
+  onLike,
+  onClone,
+  onLoginPrompt,
+}: {
+  feed: SharedTrip[];
+  loading: boolean;
+  currentUser: AppUser | null;
+  onLike: (id: string) => void;
+  onClone: (t: SharedTrip) => void;
+  onLoginPrompt: () => void;
+}) {
+  const fmtRel = (iso: string) => {
+    const diff = Date.now() - new Date(iso).getTime();
+    const days = Math.floor(diff / 86_400_000);
+    if (days <= 0) return "bugün";
+    if (days === 1) return "1 gün önce";
+    if (days < 30) return `${days} gün önce`;
+    const months = Math.floor(days / 30);
+    return `${months} ay önce`;
+  };
+
+  return (
+    <div className="flex-1 overflow-y-auto p-6 space-y-4">
+      <div className="mb-1 flex items-center justify-between">
+        <h2 className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-500">
+          Topluluk Rotaları
+        </h2>
+        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-400">
+          <Globe className="h-3 w-3" /> {feed.length} paylaşım
+        </span>
+      </div>
+
+      {loading ? (
+        <div className="space-y-3">
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className="animate-pulse rounded-2xl border border-slate-200/70 bg-white p-4 shadow-sm"
+            >
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-slate-200" />
+                <div className="flex-1 space-y-1.5">
+                  <div className="h-3 w-24 rounded bg-slate-200" />
+                  <div className="h-2.5 w-16 rounded bg-slate-100" />
+                </div>
+              </div>
+              <div className="mt-4 h-3 w-3/4 rounded bg-slate-200" />
+              <div className="mt-2 h-2.5 w-full rounded bg-slate-100" />
+              <div className="mt-1.5 h-2.5 w-5/6 rounded bg-slate-100" />
+              <div className="mt-4 flex gap-2">
+                <div className="h-6 w-16 rounded-full bg-slate-100" />
+                <div className="h-6 w-20 rounded-full bg-slate-100" />
+                <div className="h-6 w-16 rounded-full bg-slate-100" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : feed.length === 0 ? (
+        <div className="flex flex-col items-center justify-center px-6 py-16 text-center animate-fade-in">
+          <div className="mb-5 flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-violet-100 via-indigo-50 to-fuchsia-100 text-violet-500 shadow-inner">
+            <Compass className="h-9 w-9" />
+          </div>
+          <h3 className="text-[15px] font-bold text-slate-800">Henüz paylaşılan gezi yok</h3>
+          <p className="mt-2 max-w-[280px] text-[13px] leading-relaxed text-slate-500">
+            Toplulukla paylaşılan ilk rota sen olabilirsin. "Gezilerim" sekmesinden bir rotayı paylaş!
+          </p>
+        </div>
+      ) : (
+        feed.map((trip) => {
+          const filled = trip.stops.filter((s) => s.address.trim().length > 0);
+          return (
+            <article
+              key={trip.id}
+              className="group relative overflow-hidden rounded-2xl border border-slate-200/70 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-lg hover:shadow-violet-500/10 transform-gpu animate-fade-in"
+            >
+              <header className="mb-2 flex items-center gap-2.5">
+                <img
+                  src={trip.publisher.avatarUrl}
+                  alt={trip.publisher.username}
+                  className="h-9 w-9 rounded-full ring-2 ring-white shadow-sm"
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13px] font-bold tracking-tight text-slate-900">
+                    @{trip.publisher.username}
+                  </p>
+                  <p className="truncate text-[11px] font-medium text-slate-400">
+                    {fmtRel(trip.publishedAt)} · {trip.publisher.bio}
+                  </p>
+                </div>
+              </header>
+
+              <h3 className="text-[14px] font-bold tracking-tight text-slate-900">
+                {trip.title}
+              </h3>
+              <p className="mt-1 line-clamp-3 text-[12.5px] leading-relaxed text-slate-600">
+                {trip.description}
+              </p>
+
+              <div className="mt-3 rounded-xl bg-slate-50/70 p-2.5 ring-1 ring-slate-100">
+                <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-medium text-slate-600">
+                  {filled.slice(0, 4).map((s, i) => (
+                    <span key={s.id} className="inline-flex items-center gap-1">
+                      {i > 0 && <span className="text-slate-300">›</span>}
+                      <span className="max-w-[110px] truncate rounded-md bg-white px-1.5 py-0.5 ring-1 ring-slate-200">
+                        {s.address.split(",")[0]}
+                      </span>
+                    </span>
+                  ))}
+                  {filled.length > 4 && (
+                    <span className="text-slate-400">+{filled.length - 4}</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[11px] font-semibold">
+                <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-violet-700 ring-1 ring-violet-100">
+                  <MapPin className="h-3 w-3" /> {filled.length} Durak
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-blue-700 ring-1 ring-blue-100">
+                  <RouteIcon className="h-3 w-3" /> {trip.metrics.distance}
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-indigo-700 ring-1 ring-indigo-100">
+                  <Clock className="h-3 w-3" /> {trip.metrics.duration}
+                </span>
+              </div>
+
+              <div className="mt-3 flex items-center gap-2">
+                <button
+                  onClick={() => (currentUser ? onLike(trip.id) : onLoginPrompt())}
+                  className={`group/like flex items-center gap-1.5 rounded-xl border px-3 py-2 text-[12.5px] font-semibold transition-all duration-200 active:scale-[0.95] transform-gpu ${
+                    trip.likedByMe
+                      ? "border-rose-200 bg-rose-50 text-rose-600"
+                      : "border-slate-200 bg-white text-slate-600 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600"
+                  }`}
+                >
+                  <Heart
+                    className={`h-4 w-4 transition-transform duration-200 group-hover/like:scale-110 ${
+                      trip.likedByMe ? "fill-rose-500 text-rose-500 animate-fade-in" : ""
+                    }`}
+                  />
+                  {trip.likes}
+                </button>
+                <button
+                  onClick={() => onClone(trip)}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 px-3 py-2 text-[13px] font-semibold text-white shadow-md shadow-violet-500/30 transition-all duration-200 hover:shadow-lg hover:shadow-violet-500/40 active:scale-[0.97] transform-gpu"
+                  title="Kendi rotana kopyala"
+                >
+                  <Copy className="h-4 w-4" /> Kendi Rotama Kopyala
+                </button>
+              </div>
+            </article>
+          );
+        })
+      )}
+    </div>
+  );
+}
+
+
+
 
 
 function MetricCard({
