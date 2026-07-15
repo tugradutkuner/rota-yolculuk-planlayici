@@ -1400,12 +1400,21 @@ function SavedTripsPanel({
               </span>
             </div>
 
-            <button
-              onClick={() => onLoad(trip)}
-              className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-[13px] font-semibold text-white shadow-sm transition-all duration-200 hover:bg-slate-800 hover:shadow-md active:scale-[0.98] transform-gpu"
-            >
-              <FolderOpen className="h-4 w-4" /> Yükle
-            </button>
+            <div className="mt-3 flex gap-2">
+              <button
+                onClick={() => onLoad(trip)}
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-[13px] font-semibold text-white shadow-sm transition-all duration-200 hover:bg-slate-800 hover:shadow-md active:scale-[0.98] transform-gpu"
+              >
+                <FolderOpen className="h-4 w-4" /> Yükle
+              </button>
+              <button
+                onClick={() => onShare(trip)}
+                className="flex items-center justify-center gap-2 rounded-xl border border-violet-200 bg-gradient-to-br from-violet-50 to-indigo-50 px-3 py-2 text-[13px] font-semibold text-violet-700 shadow-sm transition-all duration-200 hover:border-violet-300 hover:from-violet-100 hover:to-indigo-100 hover:shadow-md active:scale-[0.98] transform-gpu"
+                title="Toplulukta paylaş"
+              >
+                <Share2 className="h-4 w-4" /> Toplulukta Paylaş
+              </button>
+            </div>
           </div>
         );
       })}
