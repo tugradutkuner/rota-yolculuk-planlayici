@@ -548,12 +548,20 @@ function RoutePlanner() {
   const [aiLocked, setAiLocked] = useState(false);
   const [aiText, setAiText] = useState<string | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"new" | "trips">("new");
+  const [activeTab, setActiveTab] = useState<"new" | "trips" | "discover">("new");
   const [savedTrips, setSavedTrips] = useState<SavedTrip[]>([]);
   const [saveModalOpen, setSaveModalOpen] = useState(false);
   const [saveTitle, setSaveTitle] = useState("");
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-  const callAdvice = useServerFn(generateTravelAdvice);
+  // ── Social layer state ───────────────────────────────────────────────
+  const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
+  const [loginOpen, setLoginOpen] = useState(false);
+  const [loginName, setLoginName] = useState("");
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [feed, setFeed] = useState<SharedTrip[]>([]);
+  const [feedLoading, setFeedLoading] = useState(false);
+  const [shareTrip, setShareTrip] = useState<SavedTrip | null>(null);
+  const [shareDesc, setShareDesc] = useState("");
 
   const mapDivRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
