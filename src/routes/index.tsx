@@ -1292,6 +1292,7 @@ function SavedTripsPanel({
   setConfirmDeleteId,
   onLoad,
   onDelete,
+  onShare,
   onNew,
 }: {
   trips: SavedTrip[];
@@ -1299,6 +1300,7 @@ function SavedTripsPanel({
   setConfirmDeleteId: (id: string | null) => void;
   onLoad: (t: SavedTrip) => void;
   onDelete: (id: string) => void;
+  onShare: (t: SavedTrip) => void;
   onNew: () => void;
 }) {
   const fmtDate = (iso: string) => {
