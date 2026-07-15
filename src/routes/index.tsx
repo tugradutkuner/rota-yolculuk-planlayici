@@ -562,6 +562,7 @@ function RoutePlanner() {
   const [feedLoading, setFeedLoading] = useState(false);
   const [shareTrip, setShareTrip] = useState<SavedTrip | null>(null);
   const [shareDesc, setShareDesc] = useState("");
+  const callAdvice = useServerFn(generateTravelAdvice);
 
   const mapDivRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
