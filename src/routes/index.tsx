@@ -1422,6 +1422,171 @@ function SavedTripsPanel({
   );
 }
 
+function DiscoverPanel({
+  feed,
+  loading,
+  currentUser,
+  onLike,
+  onClone,
+  onLoginPrompt,
+}: {
+  feed: SharedTrip[];
+  loading: boolean;
+  currentUser: AppUser | null;
+  onLike: (id: string) => void;
+  onClone: (t: SharedTrip) => void;
+  onLoginPrompt: () => void;
+}) {
+  const fmtRel = (iso: string) => {
+    const diff = Date.now() - new Date(iso).getTime();
+    const days = Math.floor(diff / 86_400_000);
+    if (days <= 0) return "bugün";
+    if (days === 1) return "1 gün önce";
+    if (days < 30) return `${days} gün önce`;
+    const months = Math.floor(days / 30);
+    return `${months} ay önce`;
+  };
+
+  return (
+    <div className="flex-1 overflow-y-auto p-6 space-y-4">
+      <div className="mb-1 flex items-center justify-between">
+        <h2 className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-500">
+          Topluluk Rotaları
+        </h2>
+        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-400">
+          <Globe className="h-3 w-3" /> {feed.length} paylaşım
+        </span>
+      </div>
+
+      {loading ? (
+        <div className="space-y-3">
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className="animate-pulse rounded-2xl border border-slate-200/70 bg-white p-4 shadow-sm"
+            >
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-slate-200" />
+                <div className="flex-1 space-y-1.5">
+                  <div className="h-3 w-24 rounded bg-slate-200" />
+                  <div className="h-2.5 w-16 rounded bg-slate-100" />
+                </div>
+              </div>
+              <div className="mt-4 h-3 w-3/4 rounded bg-slate-200" />
+              <div className="mt-2 h-2.5 w-full rounded bg-slate-100" />
+              <div className="mt-1.5 h-2.5 w-5/6 rounded bg-slate-100" />
+              <div className="mt-4 flex gap-2">
+                <div className="h-6 w-16 rounded-full bg-slate-100" />
+                <div className="h-6 w-20 rounded-full bg-slate-100" />
+                <div className="h-6 w-16 rounded-full bg-slate-100" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : feed.length === 0 ? (
+        <div className="flex flex-col items-center justify-center px-6 py-16 text-center animate-fade-in">
+          <div className="mb-5 flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-violet-100 via-indigo-50 to-fuchsia-100 text-violet-500 shadow-inner">
+            <Compass className="h-9 w-9" />
+          </div>
+          <h3 className="text-[15px] font-bold text-slate-800">Henüz paylaşılan gezi yok</h3>
+          <p className="mt-2 max-w-[280px] text-[13px] leading-relaxed text-slate-500">
+            Toplulukla paylaşılan ilk rota sen olabilirsin. "Gezilerim" sekmesinden bir rotayı paylaş!
+          </p>
+        </div>
+      ) : (
+        feed.map((trip) => {
+          const filled = trip.stops.filter((s) => s.address.trim().length > 0);
+          return (
+            <article
+              key={trip.id}
+              className="group relative overflow-hidden rounded-2xl border border-slate-200/70 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-lg hover:shadow-violet-500/10 transform-gpu animate-fade-in"
+            >
+              <header className="mb-2 flex items-center gap-2.5">
+                <img
+                  src={trip.publisher.avatarUrl}
+                  alt={trip.publisher.username}
+                  className="h-9 w-9 rounded-full ring-2 ring-white shadow-sm"
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13px] font-bold tracking-tight text-slate-900">
+                    @{trip.publisher.username}
+                  </p>
+                  <p className="truncate text-[11px] font-medium text-slate-400">
+                    {fmtRel(trip.publishedAt)} · {trip.publisher.bio}
+                  </p>
+                </div>
+              </header>
+
+              <h3 className="text-[14px] font-bold tracking-tight text-slate-900">
+                {trip.title}
+              </h3>
+              <p className="mt-1 line-clamp-3 text-[12.5px] leading-relaxed text-slate-600">
+                {trip.description}
+              </p>
+
+              <div className="mt-3 rounded-xl bg-slate-50/70 p-2.5 ring-1 ring-slate-100">
+                <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-medium text-slate-600">
+                  {filled.slice(0, 4).map((s, i) => (
+                    <span key={s.id} className="inline-flex items-center gap-1">
+                      {i > 0 && <span className="text-slate-300">›</span>}
+                      <span className="max-w-[110px] truncate rounded-md bg-white px-1.5 py-0.5 ring-1 ring-slate-200">
+                        {s.address.split(",")[0]}
+                      </span>
+                    </span>
+                  ))}
+                  {filled.length > 4 && (
+                    <span className="text-slate-400">+{filled.length - 4}</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[11px] font-semibold">
+                <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-violet-700 ring-1 ring-violet-100">
+                  <MapPin className="h-3 w-3" /> {filled.length} Durak
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-blue-700 ring-1 ring-blue-100">
+                  <RouteIcon className="h-3 w-3" /> {trip.metrics.distance}
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-indigo-700 ring-1 ring-indigo-100">
+                  <Clock className="h-3 w-3" /> {trip.metrics.duration}
+                </span>
+              </div>
+
+              <div className="mt-3 flex items-center gap-2">
+                <button
+                  onClick={() => (currentUser ? onLike(trip.id) : onLoginPrompt())}
+                  className={`group/like flex items-center gap-1.5 rounded-xl border px-3 py-2 text-[12.5px] font-semibold transition-all duration-200 active:scale-[0.95] transform-gpu ${
+                    trip.likedByMe
+                      ? "border-rose-200 bg-rose-50 text-rose-600"
+                      : "border-slate-200 bg-white text-slate-600 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600"
+                  }`}
+                >
+                  <Heart
+                    className={`h-4 w-4 transition-transform duration-200 group-hover/like:scale-110 ${
+                      trip.likedByMe ? "fill-rose-500 text-rose-500 animate-fade-in" : ""
+                    }`}
+                  />
+                  {trip.likes}
+                </button>
+                <button
+                  onClick={() => onClone(trip)}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 px-3 py-2 text-[13px] font-semibold text-white shadow-md shadow-violet-500/30 transition-all duration-200 hover:shadow-lg hover:shadow-violet-500/40 active:scale-[0.97] transform-gpu"
+                  title="Kendi rotana kopyala"
+                >
+                  <Copy className="h-4 w-4" /> Kendi Rotama Kopyala
+                </button>
+              </div>
+            </article>
+          );
+        })
+      )}
+    </div>
+  );
+}
+
+
+
+
 
 function MetricCard({
   icon,
