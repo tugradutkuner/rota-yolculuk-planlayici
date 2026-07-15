@@ -31,6 +31,14 @@ import {
   Inbox,
   X,
   Check,
+  LogIn,
+  LogOut,
+  User as UserIcon,
+  Heart,
+  Copy,
+  Share2,
+  Globe,
+  Compass,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
