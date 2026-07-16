@@ -296,6 +296,8 @@ type Stop = {
   datetime: string; // departure time (manual input)
   note?: string;
   noteOpen?: boolean;
+  socialNote?: string;
+  socialNoteOpen?: boolean;
   placeId?: string;
   location?: { lat: number; lng: number };
 };
