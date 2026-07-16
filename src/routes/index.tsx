@@ -593,7 +593,11 @@ function RoutePlanner() {
   // ── Social layer state ───────────────────────────────────────────────
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
   const [loginOpen, setLoginOpen] = useState(false);
-  const [loginName, setLoginName] = useState("");
+  const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authUsername, setAuthUsername] = useState("");
+  const [authError, setAuthError] = useState<string | null>(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [feed, setFeed] = useState<SharedTrip[]>([]);
   const [feedLoading, setFeedLoading] = useState(false);
