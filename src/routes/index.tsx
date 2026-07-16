@@ -427,7 +427,7 @@ const SEED_FEED: SharedTrip[] = [
     description: "İzmir'den başlayıp Çeşme, Alaçatı ve Kuşadası'nda mola vererek Bodrum'a inen 3 günlük rüya rota. Deniz, mezeler ve gün batımları eşliğinde.",
     publishedAt: new Date(Date.now() - 3 * 86_400_000).toISOString(),
     publisher: {
-      username: "deniz.gezgin",
+      username: "deniz.gezgin", email: "deniz@example.com",
       bio: "Kıyı yolları koleksiyoncusu",
       avatarUrl: avatarFor("deniz.gezgin"),
     },
@@ -446,7 +446,7 @@ const SEED_FEED: SharedTrip[] = [
     description: "İnnsbruck'tan Zürih'e, virajlı dağ yollarında panoramik bir Avrupa turu. Fotoğraf molaları kaçırılmamalı!",
     publishedAt: new Date(Date.now() - 7 * 86_400_000).toISOString(),
     publisher: {
-      username: "mira.wanders",
+      username: "mira.wanders", email: "mira@example.com",
       bio: "Dağ yolu meraklısı",
       avatarUrl: avatarFor("mira.wanders"),
     },
@@ -465,7 +465,7 @@ const SEED_FEED: SharedTrip[] = [
     description: "Ankara'dan başlayıp Tuz Gölü ve Aksaray üzerinden peri bacalarına ulaşan sakin bir hafta sonu rotası.",
     publishedAt: new Date(Date.now() - 12 * 86_400_000).toISOString(),
     publisher: {
-      username: "anadolu.notlari",
+      username: "anadolu.notlari", email: "anadolu@example.com",
       bio: "Sessiz rotalar, uzun sohbetler",
       avatarUrl: avatarFor("anadolu.notlari"),
     },
