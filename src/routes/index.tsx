@@ -2350,6 +2350,32 @@ function StopRow({
             </div>
           )}
 
+          {stop.socialNote && !stop.socialNoteOpen && (
+            <div
+              title={stop.socialNote}
+              className="flex items-start gap-1.5 rounded-lg bg-gradient-to-br from-violet-50 to-indigo-50 px-2.5 py-1.5 text-[11.5px] font-medium text-indigo-700 ring-1 ring-indigo-200/70 animate-fade-in"
+            >
+              <Pin className="mt-0.5 h-3 w-3 shrink-0 text-indigo-500" />
+              <span className="line-clamp-2 leading-snug">{stop.socialNote}</span>
+            </div>
+          )}
+
+          {stop.socialNoteOpen && (
+            <div className="relative">
+              <span className="pointer-events-none absolute -top-2 left-3 z-10 inline-flex items-center gap-1 rounded-md bg-white px-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-indigo-500">
+                <Pin className="h-2.5 w-2.5" /> Sosyal Not
+              </span>
+              <textarea
+                autoFocus
+                value={stop.socialNote ?? ""}
+                onChange={(e) => onChange({ socialNote: e.target.value })}
+                placeholder="Örn. Ucuz benzin, Kapıkule bekleme, güzel kahve..."
+                rows={2}
+                className="w-full resize-none rounded-lg border border-indigo-200 bg-indigo-50/50 px-2.5 py-2 text-xs text-slate-700 outline-none transition placeholder:text-indigo-300 focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-100"
+              />
+            </div>
+          )}
+
           {stop.noteOpen && (
             <textarea
               value={stop.note ?? ""}
