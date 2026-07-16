@@ -452,7 +452,7 @@ const SEED_FEED: SharedTrip[] = [
     },
     stops: [
       { id: uidLocal(), address: "Innsbruck, Avusturya", datetime: "" },
-      { id: uidLocal(), address: "St. Moritz, İsviçre", datetime: "" },
+      { id: uidLocal(), address: "St. Moritz, İsviçre", datetime: "", socialNote: "Sınırda döviz bozdur — İsviçre Frangı gerekli." },
       { id: uidLocal(), address: "Andermatt, İsviçre", datetime: "" },
       { id: uidLocal(), address: "Zürih, İsviçre", datetime: "" },
     ],
@@ -471,7 +471,7 @@ const SEED_FEED: SharedTrip[] = [
     },
     stops: [
       { id: uidLocal(), address: "Ankara, Türkiye", datetime: "" },
-      { id: uidLocal(), address: "Tuz Gölü, Türkiye", datetime: "" },
+      { id: uidLocal(), address: "Tuz Gölü, Türkiye", datetime: "", socialNote: "Gün batımında fotoğraf için mükemmel — 30 dk mola verin." },
       { id: uidLocal(), address: "Aksaray, Türkiye", datetime: "" },
       { id: uidLocal(), address: "Göreme, Nevşehir, Türkiye", datetime: "" },
     ],
