@@ -1911,8 +1911,16 @@ function DiscoverPanel({
                   {filled.slice(0, 4).map((s, i) => (
                     <span key={s.id} className="inline-flex items-center gap-1">
                       {i > 0 && <span className="text-slate-300">›</span>}
-                      <span className="max-w-[110px] truncate rounded-md bg-white px-1.5 py-0.5 ring-1 ring-slate-200">
-                        {s.address.split(",")[0]}
+                      <span className="inline-flex max-w-[130px] items-center gap-1 truncate rounded-md bg-white px-1.5 py-0.5 ring-1 ring-slate-200">
+                        <span className="truncate">{s.address.split(",")[0]}</span>
+                        {s.socialNote?.trim() && (
+                          <span
+                            title={s.socialNote}
+                            className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-indigo-500 text-white shadow-sm"
+                          >
+                            <Pin className="h-2 w-2" />
+                          </span>
+                        )}
                       </span>
                     </span>
                   ))}
@@ -1920,6 +1928,18 @@ function DiscoverPanel({
                     <span className="text-slate-400">+{filled.length - 4}</span>
                   )}
                 </div>
+              </div>
+
+              {/* Smart Route Badges */}
+              <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[10.5px] font-semibold">
+                {computeRouteBadges(trip).map((b, i) => (
+                  <span
+                    key={i}
+                    className={`inline-flex items-center rounded-full px-2 py-0.5 ring-1 ${b.tone}`}
+                  >
+                    {b.label}
+                  </span>
+                ))}
               </div>
 
               <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[11px] font-semibold">
