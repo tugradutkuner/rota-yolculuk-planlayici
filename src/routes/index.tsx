@@ -39,6 +39,10 @@ import {
   Share2,
   Globe,
   Compass,
+  Mail,
+  Lock,
+  Pin,
+  Flag,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
