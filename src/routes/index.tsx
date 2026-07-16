@@ -340,8 +340,13 @@ function persistSavedTrips(trips: SavedTrip[]) {
 // ---------------------------------------------------------------------------
 interface AppUser {
   username: string;
+  email: string;
   bio: string;
   avatarUrl: string;
+}
+
+interface StoredUser extends AppUser {
+  passwordHash: string;
 }
 
 interface SharedTrip {
@@ -357,6 +362,7 @@ interface SharedTrip {
 }
 
 const AUTH_KEY = "trip_planner_current_user";
+const USERS_KEY = "trip_planner_users";
 const FEED_KEY = "public_shared_feed";
 
 const AVATAR_PALETTE = [
@@ -368,6 +374,13 @@ function avatarFor(username: string): string {
   const palette = AVATAR_PALETTE[hash % AVATAR_PALETTE.length];
   const [bg, fg] = palette.split(",");
   return `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=${bg}&color=${fg}&bold=true&size=128`;
+}
+
+// Lightweight non-cryptographic hash — sufficient for a client-only demo layer.
+function hashPassword(pw: string): string {
+  let h = 5381;
+  for (let i = 0; i < pw.length; i++) h = ((h << 5) + h + pw.charCodeAt(i)) | 0;
+  return `h${(h >>> 0).toString(36)}_${pw.length}`;
 }
 
 function loadCurrentUser(): AppUser | null {
@@ -384,6 +397,24 @@ function persistCurrentUser(u: AppUser | null) {
   try {
     if (u) window.localStorage.setItem(AUTH_KEY, JSON.stringify(u));
     else window.localStorage.removeItem(AUTH_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+function loadUsers(): StoredUser[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(USERS_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+function persistUsers(users: StoredUser[]) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(USERS_KEY, JSON.stringify(users));
   } catch {
     /* ignore */
   }
