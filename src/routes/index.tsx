@@ -735,22 +735,66 @@ function RoutePlanner() {
     setFeed(loadFeed());
   }, []);
 
-  const openLogin = () => {
-    setLoginName("");
+  const openLogin = (mode: "signin" | "signup" = "signin") => {
+    setAuthMode(mode);
+    setAuthEmail("");
+    setAuthPassword("");
+    setAuthUsername("");
+    setAuthError(null);
     setLoginOpen(true);
   };
-  const confirmLogin = () => {
-    const name = loginName.trim() || "gezgin.dev";
-    const user: AppUser = {
-      username: name,
-      bio: "Rotalarını topluluğa açan gezgin.",
-      avatarUrl: avatarFor(name),
-    };
-    setCurrentUser(user);
-    persistCurrentUser(user);
+  const confirmAuth = () => {
+    const email = authEmail.trim().toLowerCase();
+    const password = authPassword;
+    if (!/^\S+@\S+\.\S+$/.test(email)) {
+      setAuthError("Geçerli bir e-posta girin.");
+      return;
+    }
+    if (password.length < 6) {
+      setAuthError("Şifre en az 6 karakter olmalıdır.");
+      return;
+    }
+    const users = loadUsers();
+    if (authMode === "signup") {
+      const uname = authUsername.trim().replace(/\s+/g, ".").toLowerCase();
+      if (uname.length < 3) {
+        setAuthError("Kullanıcı adı en az 3 karakter olmalıdır.");
+        return;
+      }
+      if (users.some((u) => u.email === email)) {
+        setAuthError("Bu e-posta zaten kayıtlı. Giriş yapmayı deneyin.");
+        return;
+      }
+      if (users.some((u) => u.username === uname)) {
+        setAuthError("Bu kullanıcı adı zaten alınmış.");
+        return;
+      }
+      const stored: StoredUser = {
+        username: uname,
+        email,
+        bio: "Rotalarını topluluğa açan gezgin.",
+        avatarUrl: avatarFor(uname),
+        passwordHash: hashPassword(password),
+      };
+      persistUsers([stored, ...users]);
+      const { passwordHash, ...pub } = stored;
+      setCurrentUser(pub);
+      persistCurrentUser(pub);
+      setLoginOpen(false);
+      toast.success(`Hoş geldin, @${pub.username}!`);
+      return;
+    }
+    // Sign in
+    const found = users.find((u) => u.email === email);
+    if (!found || found.passwordHash !== hashPassword(password)) {
+      setAuthError("E-posta veya şifre hatalı.");
+      return;
+    }
+    const { passwordHash, ...pub } = found;
+    setCurrentUser(pub);
+    persistCurrentUser(pub);
     setLoginOpen(false);
-    setUserMenuOpen(false);
-    toast.success(`Hoş geldin, @${user.username}!`);
+    toast.success(`Tekrar hoş geldin, @${pub.username}!`);
   };
   const logout = () => {
     setCurrentUser(null);
