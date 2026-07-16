@@ -2274,6 +2274,19 @@ function StopRow({
         <div className="flex items-center gap-1">
           <button
             type="button"
+            onClick={() => onChange({ socialNoteOpen: !stop.socialNoteOpen })}
+            aria-label="Sosyal Not Ekle"
+            title="Sosyal Not (topluluğa göster)"
+            className={`rounded-md p-1 transition ${
+              stop.socialNoteOpen || stop.socialNote
+                ? "bg-gradient-to-br from-violet-100 to-indigo-100 text-indigo-600 ring-1 ring-indigo-200"
+                : "text-slate-400 hover:bg-slate-100 hover:text-indigo-600"
+            }`}
+          >
+            <Pin className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
             onClick={() => onChange({ noteOpen: !stop.noteOpen })}
             aria-label="Not Ekle"
             title="Not Ekle"
