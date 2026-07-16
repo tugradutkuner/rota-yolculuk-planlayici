@@ -39,6 +39,10 @@ import {
   Share2,
   Globe,
   Compass,
+  Mail,
+  Lock,
+  Pin,
+  Flag,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -292,6 +296,8 @@ type Stop = {
   datetime: string; // departure time (manual input)
   note?: string;
   noteOpen?: boolean;
+  socialNote?: string;
+  socialNoteOpen?: boolean;
   placeId?: string;
   location?: { lat: number; lng: number };
 };
@@ -334,8 +340,13 @@ function persistSavedTrips(trips: SavedTrip[]) {
 // ---------------------------------------------------------------------------
 interface AppUser {
   username: string;
+  email: string;
   bio: string;
   avatarUrl: string;
+}
+
+interface StoredUser extends AppUser {
+  passwordHash: string;
 }
 
 interface SharedTrip {
@@ -351,6 +362,7 @@ interface SharedTrip {
 }
 
 const AUTH_KEY = "trip_planner_current_user";
+const USERS_KEY = "trip_planner_users";
 const FEED_KEY = "public_shared_feed";
 
 const AVATAR_PALETTE = [
@@ -362,6 +374,13 @@ function avatarFor(username: string): string {
   const palette = AVATAR_PALETTE[hash % AVATAR_PALETTE.length];
   const [bg, fg] = palette.split(",");
   return `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=${bg}&color=${fg}&bold=true&size=128`;
+}
+
+// Lightweight non-cryptographic hash — sufficient for a client-only demo layer.
+function hashPassword(pw: string): string {
+  let h = 5381;
+  for (let i = 0; i < pw.length; i++) h = ((h << 5) + h + pw.charCodeAt(i)) | 0;
+  return `h${(h >>> 0).toString(36)}_${pw.length}`;
 }
 
 function loadCurrentUser(): AppUser | null {
@@ -382,6 +401,24 @@ function persistCurrentUser(u: AppUser | null) {
     /* ignore */
   }
 }
+function loadUsers(): StoredUser[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(USERS_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+function persistUsers(users: StoredUser[]) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(USERS_KEY, JSON.stringify(users));
+  } catch {
+    /* ignore */
+  }
+}
 
 const SEED_FEED: SharedTrip[] = [
   {
@@ -390,7 +427,7 @@ const SEED_FEED: SharedTrip[] = [
     description: "İzmir'den başlayıp Çeşme, Alaçatı ve Kuşadası'nda mola vererek Bodrum'a inen 3 günlük rüya rota. Deniz, mezeler ve gün batımları eşliğinde.",
     publishedAt: new Date(Date.now() - 3 * 86_400_000).toISOString(),
     publisher: {
-      username: "deniz.gezgin",
+      username: "deniz.gezgin", email: "deniz@example.com",
       bio: "Kıyı yolları koleksiyoncusu",
       avatarUrl: avatarFor("deniz.gezgin"),
     },
@@ -409,13 +446,13 @@ const SEED_FEED: SharedTrip[] = [
     description: "İnnsbruck'tan Zürih'e, virajlı dağ yollarında panoramik bir Avrupa turu. Fotoğraf molaları kaçırılmamalı!",
     publishedAt: new Date(Date.now() - 7 * 86_400_000).toISOString(),
     publisher: {
-      username: "mira.wanders",
+      username: "mira.wanders", email: "mira@example.com",
       bio: "Dağ yolu meraklısı",
       avatarUrl: avatarFor("mira.wanders"),
     },
     stops: [
       { id: uidLocal(), address: "Innsbruck, Avusturya", datetime: "" },
-      { id: uidLocal(), address: "St. Moritz, İsviçre", datetime: "" },
+      { id: uidLocal(), address: "St. Moritz, İsviçre", datetime: "", socialNote: "Sınırda döviz bozdur — İsviçre Frangı gerekli." },
       { id: uidLocal(), address: "Andermatt, İsviçre", datetime: "" },
       { id: uidLocal(), address: "Zürih, İsviçre", datetime: "" },
     ],
@@ -428,13 +465,13 @@ const SEED_FEED: SharedTrip[] = [
     description: "Ankara'dan başlayıp Tuz Gölü ve Aksaray üzerinden peri bacalarına ulaşan sakin bir hafta sonu rotası.",
     publishedAt: new Date(Date.now() - 12 * 86_400_000).toISOString(),
     publisher: {
-      username: "anadolu.notlari",
+      username: "anadolu.notlari", email: "anadolu@example.com",
       bio: "Sessiz rotalar, uzun sohbetler",
       avatarUrl: avatarFor("anadolu.notlari"),
     },
     stops: [
       { id: uidLocal(), address: "Ankara, Türkiye", datetime: "" },
-      { id: uidLocal(), address: "Tuz Gölü, Türkiye", datetime: "" },
+      { id: uidLocal(), address: "Tuz Gölü, Türkiye", datetime: "", socialNote: "Gün batımında fotoğraf için mükemmel — 30 dk mola verin." },
       { id: uidLocal(), address: "Aksaray, Türkiye", datetime: "" },
       { id: uidLocal(), address: "Göreme, Nevşehir, Türkiye", datetime: "" },
     ],
@@ -556,7 +593,11 @@ function RoutePlanner() {
   // ── Social layer state ───────────────────────────────────────────────
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
   const [loginOpen, setLoginOpen] = useState(false);
-  const [loginName, setLoginName] = useState("");
+  const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authUsername, setAuthUsername] = useState("");
+  const [authError, setAuthError] = useState<string | null>(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [feed, setFeed] = useState<SharedTrip[]>([]);
   const [feedLoading, setFeedLoading] = useState(false);
@@ -637,6 +678,11 @@ function RoutePlanner() {
   };
 
   const openSaveModal = () => {
+    if (!currentUser) {
+      toast.error("Geziyi kaydetmek için giriş yapmalısın.");
+      openLogin("signin");
+      return;
+    }
     const filled = stops.filter((s) => s.address.trim().length > 0);
     if (filled.length < 2) {
       toast.error("Kaydetmek için en az 2 dolu durak gereklidir.");
@@ -694,24 +740,69 @@ function RoutePlanner() {
     setFeed(loadFeed());
   }, []);
 
-  const openLogin = () => {
-    setLoginName("");
+  const openLogin = (mode: "signin" | "signup" = "signin") => {
+    setAuthMode(mode);
+    setAuthEmail("");
+    setAuthPassword("");
+    setAuthUsername("");
+    setAuthError(null);
     setLoginOpen(true);
   };
-  const confirmLogin = () => {
-    const name = loginName.trim() || "gezgin.dev";
-    const user: AppUser = {
-      username: name,
-      bio: "Rotalarını topluluğa açan gezgin.",
-      avatarUrl: avatarFor(name),
-    };
-    setCurrentUser(user);
-    persistCurrentUser(user);
+  const confirmAuth = () => {
+    const email = authEmail.trim().toLowerCase();
+    const password = authPassword;
+    if (!/^\S+@\S+\.\S+$/.test(email)) {
+      setAuthError("Geçerli bir e-posta girin.");
+      return;
+    }
+    if (password.length < 6) {
+      setAuthError("Şifre en az 6 karakter olmalıdır.");
+      return;
+    }
+    const users = loadUsers();
+    if (authMode === "signup") {
+      const uname = authUsername.trim().replace(/\s+/g, ".").toLowerCase();
+      if (uname.length < 3) {
+        setAuthError("Kullanıcı adı en az 3 karakter olmalıdır.");
+        return;
+      }
+      if (users.some((u) => u.email === email)) {
+        setAuthError("Bu e-posta zaten kayıtlı. Giriş yapmayı deneyin.");
+        return;
+      }
+      if (users.some((u) => u.username === uname)) {
+        setAuthError("Bu kullanıcı adı zaten alınmış.");
+        return;
+      }
+      const stored: StoredUser = {
+        username: uname,
+        email,
+        bio: "Rotalarını topluluğa açan gezgin.",
+        avatarUrl: avatarFor(uname),
+        passwordHash: hashPassword(password),
+      };
+      persistUsers([stored, ...users]);
+      const { passwordHash, ...pub } = stored;
+      setCurrentUser(pub);
+      persistCurrentUser(pub);
+      setLoginOpen(false);
+      toast.success(`Hoş geldin, @${pub.username}!`);
+      return;
+    }
+    // Sign in
+    const found = users.find((u) => u.email === email);
+    if (!found || found.passwordHash !== hashPassword(password)) {
+      setAuthError("E-posta veya şifre hatalı.");
+      return;
+    }
+    const { passwordHash, ...pub } = found;
+    setCurrentUser(pub);
+    persistCurrentUser(pub);
     setLoginOpen(false);
-    setUserMenuOpen(false);
-    toast.success(`Hoş geldin, @${user.username}!`);
+    toast.success(`Tekrar hoş geldin, @${pub.username}!`);
   };
   const logout = () => {
+    setActiveTab("new");
     setCurrentUser(null);
     persistCurrentUser(null);
     setUserMenuOpen(false);
@@ -1011,7 +1102,14 @@ function RoutePlanner() {
               </button>
               <button
                 type="button"
-                onClick={() => setActiveTab("trips")}
+                onClick={() => {
+                  if (!currentUser) {
+                    toast.error("Gezilerini görmek için giriş yapmalısın.");
+                    openLogin("signin");
+                    return;
+                  }
+                  setActiveTab("trips");
+                }}
                 className={`relative z-[1] flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[12.5px] font-semibold transition-colors duration-200 ${
                   activeTab === "trips" ? "text-violet-700" : "text-slate-500 hover:text-slate-700"
                 }`}
@@ -1293,7 +1391,7 @@ function RoutePlanner() {
             </div>
           ) : (
             <button
-              onClick={openLogin}
+              onClick={() => openLogin("signin")}
               className="flex items-center gap-2 rounded-full bg-gradient-to-br from-violet-600 to-indigo-600 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-violet-500/30 transition-all duration-200 hover:shadow-xl hover:shadow-violet-500/40 active:scale-[0.97] transform-gpu"
             >
               <LogIn className="h-4 w-4" /> Giriş Yap
@@ -1375,9 +1473,13 @@ function RoutePlanner() {
                 <LogIn className="h-5 w-5" />
               </div>
               <div className="flex-1">
-                <h3 className="text-base font-bold text-slate-900">Topluluğa Katıl</h3>
+                <h3 className="text-base font-bold text-slate-900">
+                  {authMode === "signin" ? "Tekrar Hoş Geldin" : "Topluluğa Katıl"}
+                </h3>
                 <p className="mt-0.5 text-xs text-slate-500">
-                  Bir kullanıcı adı seç ve rotalarını paylaşmaya başla.
+                  {authMode === "signin"
+                    ? "E-posta ve şifrenle giriş yap."
+                    : "Kısa bir kayıt sonrası rotalarını paylaşmaya başla."}
                 </p>
               </div>
               <button
@@ -1388,23 +1490,70 @@ function RoutePlanner() {
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-[0.1em] text-slate-500">
-              Kullanıcı Adı
-            </label>
-            <input
-              autoFocus
-              value={loginName}
-              onChange={(e) => setLoginName(e.target.value.replace(/\s+/g, "."))}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") confirmLogin();
-                if (e.key === "Escape") setLoginOpen(false);
-              }}
-              placeholder="örn. gezgin.dev"
-              className="w-full rounded-xl border-0 bg-slate-50/70 px-4 py-3 text-sm text-slate-800 outline-none ring-1 ring-slate-200 transition placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-violet-500/40"
-            />
-            <p className="mt-2 text-[11px] text-slate-400">
-              Boş bırakırsan @gezgin.dev olarak giriş yapılır.
-            </p>
+
+            <div className="mb-4 inline-flex w-full rounded-xl bg-slate-100/80 p-1 text-[12px] font-semibold">
+              <button
+                type="button"
+                onClick={() => { setAuthMode("signin"); setAuthError(null); }}
+                className={`flex-1 rounded-lg px-3 py-1.5 transition ${authMode === "signin" ? "bg-white text-violet-700 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+              >
+                Giriş Yap
+              </button>
+              <button
+                type="button"
+                onClick={() => { setAuthMode("signup"); setAuthError(null); }}
+                className={`flex-1 rounded-lg px-3 py-1.5 transition ${authMode === "signup" ? "bg-white text-violet-700 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+              >
+                Kayıt Ol
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {authMode === "signup" && (
+                <div className="relative">
+                  <UserIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    autoFocus
+                    value={authUsername}
+                    onChange={(e) => setAuthUsername(e.target.value.replace(/\s+/g, "."))}
+                    placeholder="Kullanıcı adı"
+                    className="w-full rounded-xl border-0 bg-slate-50/70 py-3 pl-9 pr-3 text-sm text-slate-800 outline-none ring-1 ring-slate-200 transition placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-violet-500/40"
+                  />
+                </div>
+              )}
+              <div className="relative">
+                <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="email"
+                  autoFocus={authMode === "signin"}
+                  value={authEmail}
+                  onChange={(e) => setAuthEmail(e.target.value)}
+                  placeholder="E-posta adresi"
+                  className="w-full rounded-xl border-0 bg-slate-50/70 py-3 pl-9 pr-3 text-sm text-slate-800 outline-none ring-1 ring-slate-200 transition placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-violet-500/40"
+                />
+              </div>
+              <div className="relative">
+                <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="password"
+                  value={authPassword}
+                  onChange={(e) => setAuthPassword(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") confirmAuth();
+                    if (e.key === "Escape") setLoginOpen(false);
+                  }}
+                  placeholder="Şifre (en az 6 karakter)"
+                  className="w-full rounded-xl border-0 bg-slate-50/70 py-3 pl-9 pr-3 text-sm text-slate-800 outline-none ring-1 ring-slate-200 transition placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-violet-500/40"
+                />
+              </div>
+            </div>
+
+            {authError && (
+              <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-[12px] font-medium text-rose-700 ring-1 ring-rose-100 animate-fade-in">
+                {authError}
+              </p>
+            )}
+
             <div className="mt-5 flex justify-end gap-2">
               <button
                 onClick={() => setLoginOpen(false)}
@@ -1413,10 +1562,10 @@ function RoutePlanner() {
                 İptal
               </button>
               <button
-                onClick={confirmLogin}
+                onClick={confirmAuth}
                 className="flex items-center gap-2 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-500/30 transition-all duration-200 hover:shadow-xl hover:shadow-violet-500/40 active:scale-[0.97] transform-gpu"
               >
-                <LogIn className="h-4 w-4" /> Giriş Yap
+                <LogIn className="h-4 w-4" /> {authMode === "signin" ? "Giriş Yap" : "Kayıt Ol"}
               </button>
             </div>
           </div>
@@ -1617,6 +1766,44 @@ function SavedTripsPanel({
   );
 }
 
+function extractCountry(address: string): string | null {
+  if (!address) return null;
+  const parts = address.split(",").map((p) => p.trim()).filter(Boolean);
+  return parts.length ? parts[parts.length - 1] : null;
+}
+
+interface RouteBadge {
+  label: string;
+  tone: string;
+}
+function computeRouteBadges(trip: SharedTrip): RouteBadge[] {
+  const badges: RouteBadge[] = [];
+  const countries = new Set<string>();
+  for (const s of trip.stops) {
+    const c = extractCountry(s.address);
+    if (c) countries.add(c);
+  }
+  const countryCount = countries.size;
+  const kmMatch = trip.metrics.distance.match(/([\d.,]+)\s*km/i);
+  const km = kmMatch ? parseFloat(kmMatch[1].replace(",", ".")) : NaN;
+
+  if (countryCount > 1) {
+    badges.push({ label: `#${countryCount} Ülke`, tone: "bg-amber-50 text-amber-700 ring-amber-100" });
+    badges.push({ label: "#Sınır Geçişi", tone: "bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-100" });
+  }
+  if (!isNaN(km) && km > 500) {
+    badges.push({ label: "#Uzun Yol", tone: "bg-emerald-50 text-emerald-700 ring-emerald-100" });
+  }
+  if (!isNaN(km)) {
+    badges.push({ label: `#${Math.round(km)} km`, tone: "bg-slate-100 text-slate-700 ring-slate-200" });
+  }
+  const socialCount = trip.stops.filter((s) => s.socialNote?.trim()).length;
+  if (socialCount > 0) {
+    badges.push({ label: `#${socialCount} Sosyal Not`, tone: "bg-indigo-50 text-indigo-700 ring-indigo-100" });
+  }
+  return badges;
+}
+
 function DiscoverPanel({
   feed,
   loading,
@@ -1724,8 +1911,16 @@ function DiscoverPanel({
                   {filled.slice(0, 4).map((s, i) => (
                     <span key={s.id} className="inline-flex items-center gap-1">
                       {i > 0 && <span className="text-slate-300">›</span>}
-                      <span className="max-w-[110px] truncate rounded-md bg-white px-1.5 py-0.5 ring-1 ring-slate-200">
-                        {s.address.split(",")[0]}
+                      <span className="inline-flex max-w-[130px] items-center gap-1 truncate rounded-md bg-white px-1.5 py-0.5 ring-1 ring-slate-200">
+                        <span className="truncate">{s.address.split(",")[0]}</span>
+                        {s.socialNote?.trim() && (
+                          <span
+                            title={s.socialNote}
+                            className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-indigo-500 text-white shadow-sm"
+                          >
+                            <Pin className="h-2 w-2" />
+                          </span>
+                        )}
                       </span>
                     </span>
                   ))}
@@ -1733,6 +1928,18 @@ function DiscoverPanel({
                     <span className="text-slate-400">+{filled.length - 4}</span>
                   )}
                 </div>
+              </div>
+
+              {/* Smart Route Badges */}
+              <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[10.5px] font-semibold">
+                {computeRouteBadges(trip).map((b, i) => (
+                  <span
+                    key={i}
+                    className={`inline-flex items-center rounded-full px-2 py-0.5 ring-1 ${b.tone}`}
+                  >
+                    {b.label}
+                  </span>
+                ))}
               </div>
 
               <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[11px] font-semibold">
@@ -2067,6 +2274,19 @@ function StopRow({
         <div className="flex items-center gap-1">
           <button
             type="button"
+            onClick={() => onChange({ socialNoteOpen: !stop.socialNoteOpen })}
+            aria-label="Sosyal Not Ekle"
+            title="Sosyal Not (topluluğa göster)"
+            className={`rounded-md p-1 transition ${
+              stop.socialNoteOpen || stop.socialNote
+                ? "bg-gradient-to-br from-violet-100 to-indigo-100 text-indigo-600 ring-1 ring-indigo-200"
+                : "text-slate-400 hover:bg-slate-100 hover:text-indigo-600"
+            }`}
+          >
+            <Pin className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
             onClick={() => onChange({ noteOpen: !stop.noteOpen })}
             aria-label="Not Ekle"
             title="Not Ekle"
@@ -2127,6 +2347,32 @@ function StopRow({
                   ? fmtSmartTR(new Date(stop.datetime))
                   : "Yolculuk başlangıç zamanını seçin..."}
               </span>
+            </div>
+          )}
+
+          {stop.socialNote && !stop.socialNoteOpen && (
+            <div
+              title={stop.socialNote}
+              className="flex items-start gap-1.5 rounded-lg bg-gradient-to-br from-violet-50 to-indigo-50 px-2.5 py-1.5 text-[11.5px] font-medium text-indigo-700 ring-1 ring-indigo-200/70 animate-fade-in"
+            >
+              <Pin className="mt-0.5 h-3 w-3 shrink-0 text-indigo-500" />
+              <span className="line-clamp-2 leading-snug">{stop.socialNote}</span>
+            </div>
+          )}
+
+          {stop.socialNoteOpen && (
+            <div className="relative">
+              <span className="pointer-events-none absolute -top-2 left-3 z-10 inline-flex items-center gap-1 rounded-md bg-white px-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-indigo-500">
+                <Pin className="h-2.5 w-2.5" /> Sosyal Not
+              </span>
+              <textarea
+                autoFocus
+                value={stop.socialNote ?? ""}
+                onChange={(e) => onChange({ socialNote: e.target.value })}
+                placeholder="Örn. Ucuz benzin, Kapıkule bekleme, güzel kahve..."
+                rows={2}
+                className="w-full resize-none rounded-lg border border-indigo-200 bg-indigo-50/50 px-2.5 py-2 text-xs text-slate-700 outline-none transition placeholder:text-indigo-300 focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-100"
+              />
             </div>
           )}
 
