@@ -1460,9 +1460,13 @@ function RoutePlanner() {
                 <LogIn className="h-5 w-5" />
               </div>
               <div className="flex-1">
-                <h3 className="text-base font-bold text-slate-900">Topluluğa Katıl</h3>
+                <h3 className="text-base font-bold text-slate-900">
+                  {authMode === "signin" ? "Tekrar Hoş Geldin" : "Topluluğa Katıl"}
+                </h3>
                 <p className="mt-0.5 text-xs text-slate-500">
-                  Bir kullanıcı adı seç ve rotalarını paylaşmaya başla.
+                  {authMode === "signin"
+                    ? "E-posta ve şifrenle giriş yap."
+                    : "Kısa bir kayıt sonrası rotalarını paylaşmaya başla."}
                 </p>
               </div>
               <button
@@ -1473,23 +1477,70 @@ function RoutePlanner() {
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-[0.1em] text-slate-500">
-              Kullanıcı Adı
-            </label>
-            <input
-              autoFocus
-              value={loginName}
-              onChange={(e) => setLoginName(e.target.value.replace(/\s+/g, "."))}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") confirmLogin();
-                if (e.key === "Escape") setLoginOpen(false);
-              }}
-              placeholder="örn. gezgin.dev"
-              className="w-full rounded-xl border-0 bg-slate-50/70 px-4 py-3 text-sm text-slate-800 outline-none ring-1 ring-slate-200 transition placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-violet-500/40"
-            />
-            <p className="mt-2 text-[11px] text-slate-400">
-              Boş bırakırsan @gezgin.dev olarak giriş yapılır.
-            </p>
+
+            <div className="mb-4 inline-flex w-full rounded-xl bg-slate-100/80 p-1 text-[12px] font-semibold">
+              <button
+                type="button"
+                onClick={() => { setAuthMode("signin"); setAuthError(null); }}
+                className={`flex-1 rounded-lg px-3 py-1.5 transition ${authMode === "signin" ? "bg-white text-violet-700 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+              >
+                Giriş Yap
+              </button>
+              <button
+                type="button"
+                onClick={() => { setAuthMode("signup"); setAuthError(null); }}
+                className={`flex-1 rounded-lg px-3 py-1.5 transition ${authMode === "signup" ? "bg-white text-violet-700 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+              >
+                Kayıt Ol
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {authMode === "signup" && (
+                <div className="relative">
+                  <UserIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    autoFocus
+                    value={authUsername}
+                    onChange={(e) => setAuthUsername(e.target.value.replace(/\s+/g, "."))}
+                    placeholder="Kullanıcı adı"
+                    className="w-full rounded-xl border-0 bg-slate-50/70 py-3 pl-9 pr-3 text-sm text-slate-800 outline-none ring-1 ring-slate-200 transition placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-violet-500/40"
+                  />
+                </div>
+              )}
+              <div className="relative">
+                <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="email"
+                  autoFocus={authMode === "signin"}
+                  value={authEmail}
+                  onChange={(e) => setAuthEmail(e.target.value)}
+                  placeholder="E-posta adresi"
+                  className="w-full rounded-xl border-0 bg-slate-50/70 py-3 pl-9 pr-3 text-sm text-slate-800 outline-none ring-1 ring-slate-200 transition placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-violet-500/40"
+                />
+              </div>
+              <div className="relative">
+                <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="password"
+                  value={authPassword}
+                  onChange={(e) => setAuthPassword(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") confirmAuth();
+                    if (e.key === "Escape") setLoginOpen(false);
+                  }}
+                  placeholder="Şifre (en az 6 karakter)"
+                  className="w-full rounded-xl border-0 bg-slate-50/70 py-3 pl-9 pr-3 text-sm text-slate-800 outline-none ring-1 ring-slate-200 transition placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-violet-500/40"
+                />
+              </div>
+            </div>
+
+            {authError && (
+              <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-[12px] font-medium text-rose-700 ring-1 ring-rose-100 animate-fade-in">
+                {authError}
+              </p>
+            )}
+
             <div className="mt-5 flex justify-end gap-2">
               <button
                 onClick={() => setLoginOpen(false)}
@@ -1498,10 +1549,10 @@ function RoutePlanner() {
                 İptal
               </button>
               <button
-                onClick={confirmLogin}
+                onClick={confirmAuth}
                 className="flex items-center gap-2 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-500/30 transition-all duration-200 hover:shadow-xl hover:shadow-violet-500/40 active:scale-[0.97] transform-gpu"
               >
-                <LogIn className="h-4 w-4" /> Giriş Yap
+                <LogIn className="h-4 w-4" /> {authMode === "signin" ? "Giriş Yap" : "Kayıt Ol"}
               </button>
             </div>
           </div>
