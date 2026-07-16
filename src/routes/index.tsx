@@ -1766,6 +1766,44 @@ function SavedTripsPanel({
   );
 }
 
+function extractCountry(address: string): string | null {
+  if (!address) return null;
+  const parts = address.split(",").map((p) => p.trim()).filter(Boolean);
+  return parts.length ? parts[parts.length - 1] : null;
+}
+
+interface RouteBadge {
+  label: string;
+  tone: string;
+}
+function computeRouteBadges(trip: SharedTrip): RouteBadge[] {
+  const badges: RouteBadge[] = [];
+  const countries = new Set<string>();
+  for (const s of trip.stops) {
+    const c = extractCountry(s.address);
+    if (c) countries.add(c);
+  }
+  const countryCount = countries.size;
+  const kmMatch = trip.metrics.distance.match(/([\d.,]+)\s*km/i);
+  const km = kmMatch ? parseFloat(kmMatch[1].replace(",", ".")) : NaN;
+
+  if (countryCount > 1) {
+    badges.push({ label: `#${countryCount} Ülke`, tone: "bg-amber-50 text-amber-700 ring-amber-100" });
+    badges.push({ label: "#Sınır Geçişi", tone: "bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-100" });
+  }
+  if (!isNaN(km) && km > 500) {
+    badges.push({ label: "#Uzun Yol", tone: "bg-emerald-50 text-emerald-700 ring-emerald-100" });
+  }
+  if (!isNaN(km)) {
+    badges.push({ label: `#${Math.round(km)} km`, tone: "bg-slate-100 text-slate-700 ring-slate-200" });
+  }
+  const socialCount = trip.stops.filter((s) => s.socialNote?.trim()).length;
+  if (socialCount > 0) {
+    badges.push({ label: `#${socialCount} Sosyal Not`, tone: "bg-indigo-50 text-indigo-700 ring-indigo-100" });
+  }
+  return badges;
+}
+
 function DiscoverPanel({
   feed,
   loading,
