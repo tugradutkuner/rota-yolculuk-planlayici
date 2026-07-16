@@ -1378,7 +1378,7 @@ function RoutePlanner() {
             </div>
           ) : (
             <button
-              onClick={openLogin}
+              onClick={() => openLogin("signin")}
               className="flex items-center gap-2 rounded-full bg-gradient-to-br from-violet-600 to-indigo-600 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-violet-500/30 transition-all duration-200 hover:shadow-xl hover:shadow-violet-500/40 active:scale-[0.97] transform-gpu"
             >
               <LogIn className="h-4 w-4" /> Giriş Yap
