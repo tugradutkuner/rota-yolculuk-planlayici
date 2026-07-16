@@ -678,6 +678,11 @@ function RoutePlanner() {
   };
 
   const openSaveModal = () => {
+    if (!currentUser) {
+      toast.error("Geziyi kaydetmek için giriş yapmalısın.");
+      openLogin("signin");
+      return;
+    }
     const filled = stops.filter((s) => s.address.trim().length > 0);
     if (filled.length < 2) {
       toast.error("Kaydetmek için en az 2 dolu durak gereklidir.");
