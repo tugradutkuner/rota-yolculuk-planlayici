@@ -802,6 +802,7 @@ function RoutePlanner() {
     toast.success(`Tekrar hoş geldin, @${pub.username}!`);
   };
   const logout = () => {
+    setActiveTab("new");
     setCurrentUser(null);
     persistCurrentUser(null);
     setUserMenuOpen(false);
