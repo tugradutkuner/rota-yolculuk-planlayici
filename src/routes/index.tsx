@@ -1167,6 +1167,8 @@ function RoutePlanner() {
               onLike={toggleLike}
               onClone={cloneSharedTrip}
               onLoginPrompt={openLogin}
+              onNew={() => setActiveTab("new")}
+              onOpenImage={(url, stopName, note) => setLightbox({ url, stopName, note })}
             />
           ) : (
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
