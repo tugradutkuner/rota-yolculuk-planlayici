@@ -1944,9 +1944,20 @@ function DiscoverPanel({
                 </div>
               </header>
 
-              <h3 className="text-[14px] font-bold tracking-tight text-slate-900">
-                {trip.title}
-              </h3>
+              <div className="flex items-start gap-2">
+                <h3 className="flex-1 text-[14px] font-bold tracking-tight text-slate-900">
+                  {trip.title}
+                </h3>
+                {trip.status === "completed" ? (
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10.5px] font-bold text-emerald-700 ring-1 ring-emerald-200">
+                    <Check className="h-3 w-3" /> Tamamlandı
+                  </span>
+                ) : (
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-[10.5px] font-bold text-sky-700 ring-1 ring-sky-200">
+                    <Calendar className="h-3 w-3" /> Planlanan
+                  </span>
+                )}
+              </div>
               <p className="mt-1 line-clamp-3 text-[12.5px] leading-relaxed text-slate-600">
                 {trip.description}
               </p>
@@ -1974,6 +1985,41 @@ function DiscoverPanel({
                   )}
                 </div>
               </div>
+
+              {trip.status === "completed" && (() => {
+                const gallery = filled.flatMap((s) =>
+                  (s.media ?? []).filter((u) => u.trim()).map((url) => ({
+                    url,
+                    stopName: s.address.split(",")[0] || "Durak",
+                    note: s.socialNote?.trim() || s.note?.trim(),
+                  })),
+                );
+                if (!gallery.length) return null;
+                return (
+                  <div className="mt-3 -mx-1 flex snap-x snap-mandatory gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]">
+                    {gallery.map((g, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => onOpenImage(g.url, g.stopName, g.note)}
+                        className="group/img relative h-24 w-32 shrink-0 snap-start overflow-hidden rounded-xl ring-1 ring-slate-200/80 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:ring-violet-300 active:scale-[0.97] transform-gpu"
+                        title={g.stopName}
+                      >
+                        <img
+                          src={g.url}
+                          alt={g.stopName}
+                          loading="lazy"
+                          className="h-full w-full object-cover transition-transform duration-500 group-hover/img:scale-110"
+                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                        />
+                        <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent px-1.5 py-1 text-[10px] font-semibold text-white">
+                          <span className="line-clamp-1">{g.stopName}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                );
+              })()}
 
               {/* Smart Route Badges */}
               <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[10.5px] font-semibold">
