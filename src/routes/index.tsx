@@ -605,6 +605,9 @@ function RoutePlanner() {
   const [feedLoading, setFeedLoading] = useState(false);
   const [shareTrip, setShareTrip] = useState<SavedTrip | null>(null);
   const [shareDesc, setShareDesc] = useState("");
+  const [shareStatus, setShareStatus] = useState<"planned" | "completed">("planned");
+  const [shareStops, setShareStops] = useState<Stop[]>([]);
+  const [lightbox, setLightbox] = useState<{ url: string; stopName: string; note?: string } | null>(null);
   const callAdvice = useServerFn(generateTravelAdvice);
 
   const mapDivRef = useRef<HTMLDivElement>(null);
