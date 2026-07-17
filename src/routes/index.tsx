@@ -743,6 +743,10 @@ function RoutePlanner() {
   useEffect(() => {
     setCurrentUser(loadCurrentUser());
     setFeed(loadFeed());
+    // Show a brief skeleton on initial mount since Discover is the homepage
+    setFeedLoading(true);
+    const t = setTimeout(() => setFeedLoading(false), 550);
+    return () => clearTimeout(t);
   }, []);
 
   const openLogin = (mode: "signin" | "signup" = "signin") => {
