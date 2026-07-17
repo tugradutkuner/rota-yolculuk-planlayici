@@ -300,6 +300,7 @@ type Stop = {
   socialNoteOpen?: boolean;
   placeId?: string;
   location?: { lat: number; lng: number };
+  media?: string[]; // image URLs for completed trips
 };
 
 type Metrics = { distanceKm: number; durationMin: number } | null;
@@ -359,6 +360,7 @@ interface SharedTrip {
   metrics: { distance: string; duration: string };
   likes: number;
   likedByMe?: boolean;
+  status?: "planned" | "completed";
 }
 
 const AUTH_KEY = "trip_planner_current_user";
@@ -585,7 +587,7 @@ function RoutePlanner() {
   const [aiLocked, setAiLocked] = useState(false);
   const [aiText, setAiText] = useState<string | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"new" | "trips" | "discover">("new");
+  const [activeTab, setActiveTab] = useState<"new" | "trips" | "discover">("discover");
   const [savedTrips, setSavedTrips] = useState<SavedTrip[]>([]);
   const [saveModalOpen, setSaveModalOpen] = useState(false);
   const [saveTitle, setSaveTitle] = useState("");
@@ -603,6 +605,9 @@ function RoutePlanner() {
   const [feedLoading, setFeedLoading] = useState(false);
   const [shareTrip, setShareTrip] = useState<SavedTrip | null>(null);
   const [shareDesc, setShareDesc] = useState("");
+  const [shareStatus, setShareStatus] = useState<"planned" | "completed">("planned");
+  const [shareStops, setShareStops] = useState<Stop[]>([]);
+  const [lightbox, setLightbox] = useState<{ url: string; stopName: string; note?: string } | null>(null);
   const callAdvice = useServerFn(generateTravelAdvice);
 
   const mapDivRef = useRef<HTMLDivElement>(null);
@@ -738,6 +743,10 @@ function RoutePlanner() {
   useEffect(() => {
     setCurrentUser(loadCurrentUser());
     setFeed(loadFeed());
+    // Show a brief skeleton on initial mount since Discover is the homepage
+    setFeedLoading(true);
+    const t = setTimeout(() => setFeedLoading(false), 550);
+    return () => clearTimeout(t);
   }, []);
 
   const openLogin = (mode: "signin" | "signup" = "signin") => {
@@ -823,23 +832,30 @@ function RoutePlanner() {
     }
     setShareTrip(trip);
     setShareDesc("");
+    setShareStatus("planned");
+    setShareStops(trip.stops.map((s) => ({ ...s, media: s.media ? [...s.media] : [] })));
   };
   const confirmShareTrip = () => {
     if (!shareTrip || !currentUser) return;
+    const finalStops = (shareStatus === "completed" ? shareStops : shareTrip.stops).map((s) => ({
+      ...s,
+      media: shareStatus === "completed" ? (s.media ?? []).filter((u) => u.trim().length > 0) : undefined,
+    }));
     const shared: SharedTrip = {
       id: uid(),
       title: shareTrip.title,
       description: shareDesc.trim() || "Yeni bir rota paylaştım — beğenirseniz kopyalayın!",
       publishedAt: new Date().toISOString(),
       publisher: currentUser,
-      stops: shareTrip.stops.map((s) => ({ ...s })),
+      stops: finalStops,
       metrics: shareTrip.metrics,
       likes: 0,
+      status: shareStatus,
     };
     commitFeed([shared, ...feed]);
     setShareTrip(null);
     setShareDesc("");
-    toast.success("Gezi toplulukta paylaşıldı!");
+    toast.success(shareStatus === "completed" ? "Tamamlanan gezin toplulukta paylaşıldı!" : "Gezi toplulukta paylaşıldı!");
   };
 
   const toggleLike = (id: string) => {
@@ -1151,6 +1167,8 @@ function RoutePlanner() {
               onLike={toggleLike}
               onClone={cloneSharedTrip}
               onLoginPrompt={openLogin}
+              onNew={() => setActiveTab("new")}
+              onOpenImage={(url, stopName, note) => setLightbox({ url, stopName, note })}
             />
           ) : (
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
@@ -1578,7 +1596,7 @@ function RoutePlanner() {
           onClick={() => setShareTrip(null)}
         >
           <div
-            className="w-full max-w-md rounded-2xl border border-white/60 bg-white/85 p-6 shadow-2xl backdrop-blur-2xl transform-gpu ring-1 ring-slate-200/60"
+            className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border border-white/60 bg-white/85 p-6 shadow-2xl backdrop-blur-2xl transform-gpu ring-1 ring-slate-200/60"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-start gap-3">
@@ -1597,17 +1615,97 @@ function RoutePlanner() {
                 <X className="h-4 w-4" />
               </button>
             </div>
+
+            {/* Trip status toggle */}
+            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-[0.1em] text-slate-500">
+              Gezi Durumu
+            </label>
+            <div className="mb-4 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setShareStatus("planned")}
+                className={`flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-[12.5px] font-semibold transition-all active:scale-[0.97] transform-gpu ${
+                  shareStatus === "planned"
+                    ? "border-sky-300 bg-sky-50 text-sky-700 ring-2 ring-sky-200"
+                    : "border-slate-200 bg-white text-slate-500 hover:border-sky-200 hover:text-sky-700"
+                }`}
+              >
+                <Calendar className="h-4 w-4" /> Planlanan Gezi
+              </button>
+              <button
+                type="button"
+                onClick={() => setShareStatus("completed")}
+                className={`flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-[12.5px] font-semibold transition-all active:scale-[0.97] transform-gpu ${
+                  shareStatus === "completed"
+                    ? "border-emerald-300 bg-emerald-50 text-emerald-700 ring-2 ring-emerald-200"
+                    : "border-slate-200 bg-white text-slate-500 hover:border-emerald-200 hover:text-emerald-700"
+                }`}
+              >
+                <Check className="h-4 w-4" /> Tamamlanan Gezi
+              </button>
+            </div>
+
             <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-[0.1em] text-slate-500">
               Kısa Açıklama
             </label>
             <textarea
-              autoFocus
               rows={3}
               value={shareDesc}
               onChange={(e) => setShareDesc(e.target.value)}
               placeholder="Örn. Yaz için mükemmel Balkan rotası!"
               className="w-full resize-none rounded-xl border-0 bg-slate-50/70 px-4 py-3 text-sm text-slate-800 outline-none ring-1 ring-slate-200 transition placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-violet-500/40"
             />
+
+            {/* Per-stop media (completed only) */}
+            {shareStatus === "completed" && (
+              <div className="mt-4 space-y-3 rounded-xl border border-emerald-200/70 bg-emerald-50/40 p-3">
+                <p className="text-[11.5px] font-semibold text-emerald-800">
+                  📸 Rota Fotoğrafları — her durak için bir görsel URL'si ekleyin (Insta360, kamera, vb.).
+                </p>
+                {shareStops.map((s, si) => (
+                  <div key={s.id} className="rounded-lg bg-white/80 p-2.5 ring-1 ring-emerald-100">
+                    <div className="mb-1.5 flex items-center gap-1.5 text-[11.5px] font-bold text-slate-700">
+                      <MapPin className="h-3 w-3 text-emerald-600" />
+                      <span className="truncate">{s.address.split(",")[0] || `Durak ${si + 1}`}</span>
+                    </div>
+                    <div className="space-y-1.5">
+                      {(s.media && s.media.length ? s.media : [""]).map((url, mi) => (
+                        <div key={mi} className="flex gap-1.5">
+                          <input
+                            type="url"
+                            value={url}
+                            onChange={(e) => {
+                              const next = [...shareStops];
+                              const media = [...(next[si].media ?? [""])];
+                              if (!media.length) media.push("");
+                              media[mi] = e.target.value;
+                              next[si] = { ...next[si], media };
+                              setShareStops(next);
+                            }}
+                            placeholder="https://... (görsel URL'si)"
+                            className="flex-1 rounded-lg border-0 bg-slate-50/80 px-2.5 py-1.5 text-[12px] text-slate-800 outline-none ring-1 ring-slate-200 transition placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-emerald-500/40"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const next = [...shareStops];
+                              const media = [...(next[si].media ?? []), ""];
+                              next[si] = { ...next[si], media };
+                              setShareStops(next);
+                            }}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-emerald-600 ring-1 ring-emerald-200 transition hover:bg-emerald-50"
+                            title="Görsel ekle"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div className="mt-5 flex justify-end gap-2">
               <button
                 onClick={() => setShareTrip(null)}
@@ -1621,6 +1719,40 @@ function RoutePlanner() {
               >
                 <Share2 className="h-4 w-4" /> Paylaş
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox overlay */}
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/80 p-4 backdrop-blur-xl animate-fade-in"
+          onClick={() => setLightbox(null)}
+        >
+          <button
+            onClick={() => setLightbox(null)}
+            className="absolute right-5 top-5 flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white backdrop-blur-md transition hover:bg-white/20"
+            aria-label="Kapat"
+          >
+            <X className="h-5 w-5" />
+          </button>
+          <div
+            className="relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-white/20 bg-white/5 shadow-2xl backdrop-blur-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={lightbox.url}
+              alt={lightbox.stopName}
+              className="max-h-[70vh] w-full object-contain bg-black/40"
+            />
+            <div className="border-t border-white/10 bg-slate-900/60 p-5 text-white">
+              <div className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.1em] text-white/70">
+                <MapPin className="h-3.5 w-3.5" /> {lightbox.stopName}
+              </div>
+              {lightbox.note && (
+                <p className="mt-2 text-[13.5px] leading-relaxed text-white/90">{lightbox.note}</p>
+              )}
             </div>
           </div>
         </div>
@@ -1811,6 +1943,8 @@ function DiscoverPanel({
   onLike,
   onClone,
   onLoginPrompt,
+  onNew,
+  onOpenImage,
 }: {
   feed: SharedTrip[];
   loading: boolean;
@@ -1818,6 +1952,8 @@ function DiscoverPanel({
   onLike: (id: string) => void;
   onClone: (t: SharedTrip) => void;
   onLoginPrompt: () => void;
+  onNew: () => void;
+  onOpenImage: (url: string, stopName: string, note?: string) => void;
 }) {
   const fmtRel = (iso: string) => {
     const diff = Date.now() - new Date(iso).getTime();
@@ -1831,6 +1967,29 @@ function DiscoverPanel({
 
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-4">
+      {/* Premium landing banner */}
+      <div className="relative overflow-hidden rounded-2xl border border-violet-200/60 bg-gradient-to-br from-violet-600 via-indigo-600 to-fuchsia-600 p-5 text-white shadow-xl shadow-violet-500/30">
+        <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
+        <div className="absolute -bottom-10 -left-10 h-32 w-32 rounded-full bg-fuchsia-300/20 blur-2xl" />
+        <div className="relative">
+          <div className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-[0.1em] backdrop-blur">
+            <Globe className="h-3 w-3" /> Keşfet
+          </div>
+          <h2 className="text-[19px] font-bold leading-tight tracking-tight">
+            Yolculuk Dünyasını Keşfet
+          </h2>
+          <p className="mt-1 text-[12.5px] leading-relaxed text-white/85">
+            Diğer gezginlerin rotalarını incele, kopyala ve kendi maceranı planla.
+          </p>
+          <button
+            onClick={onNew}
+            className="mt-3 inline-flex items-center gap-2 rounded-xl bg-white px-3.5 py-2 text-[12.5px] font-bold text-violet-700 shadow-lg shadow-black/10 transition-all duration-200 hover:shadow-xl active:scale-[0.97] transform-gpu"
+          >
+            <Navigation className="h-3.5 w-3.5" /> Yeni Rota Oluştur
+          </button>
+        </div>
+      </div>
+
       <div className="mb-1 flex items-center justify-between">
         <h2 className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-500">
           Topluluk Rotaları
@@ -1899,9 +2058,20 @@ function DiscoverPanel({
                 </div>
               </header>
 
-              <h3 className="text-[14px] font-bold tracking-tight text-slate-900">
-                {trip.title}
-              </h3>
+              <div className="flex items-start gap-2">
+                <h3 className="flex-1 text-[14px] font-bold tracking-tight text-slate-900">
+                  {trip.title}
+                </h3>
+                {trip.status === "completed" ? (
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10.5px] font-bold text-emerald-700 ring-1 ring-emerald-200">
+                    <Check className="h-3 w-3" /> Tamamlandı
+                  </span>
+                ) : (
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-[10.5px] font-bold text-sky-700 ring-1 ring-sky-200">
+                    <Calendar className="h-3 w-3" /> Planlanan
+                  </span>
+                )}
+              </div>
               <p className="mt-1 line-clamp-3 text-[12.5px] leading-relaxed text-slate-600">
                 {trip.description}
               </p>
@@ -1929,6 +2099,41 @@ function DiscoverPanel({
                   )}
                 </div>
               </div>
+
+              {trip.status === "completed" && (() => {
+                const gallery = filled.flatMap((s) =>
+                  (s.media ?? []).filter((u) => u.trim()).map((url) => ({
+                    url,
+                    stopName: s.address.split(",")[0] || "Durak",
+                    note: s.socialNote?.trim() || s.note?.trim(),
+                  })),
+                );
+                if (!gallery.length) return null;
+                return (
+                  <div className="mt-3 -mx-1 flex snap-x snap-mandatory gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]">
+                    {gallery.map((g, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => onOpenImage(g.url, g.stopName, g.note)}
+                        className="group/img relative h-24 w-32 shrink-0 snap-start overflow-hidden rounded-xl ring-1 ring-slate-200/80 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:ring-violet-300 active:scale-[0.97] transform-gpu"
+                        title={g.stopName}
+                      >
+                        <img
+                          src={g.url}
+                          alt={g.stopName}
+                          loading="lazy"
+                          className="h-full w-full object-cover transition-transform duration-500 group-hover/img:scale-110"
+                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                        />
+                        <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent px-1.5 py-1 text-[10px] font-semibold text-white">
+                          <span className="line-clamp-1">{g.stopName}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                );
+              })()}
 
               {/* Smart Route Badges */}
               <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[10.5px] font-semibold">
