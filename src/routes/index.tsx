@@ -832,23 +832,30 @@ function RoutePlanner() {
     }
     setShareTrip(trip);
     setShareDesc("");
+    setShareStatus("planned");
+    setShareStops(trip.stops.map((s) => ({ ...s, media: s.media ? [...s.media] : [] })));
   };
   const confirmShareTrip = () => {
     if (!shareTrip || !currentUser) return;
+    const finalStops = (shareStatus === "completed" ? shareStops : shareTrip.stops).map((s) => ({
+      ...s,
+      media: shareStatus === "completed" ? (s.media ?? []).filter((u) => u.trim().length > 0) : undefined,
+    }));
     const shared: SharedTrip = {
       id: uid(),
       title: shareTrip.title,
       description: shareDesc.trim() || "Yeni bir rota paylaştım — beğenirseniz kopyalayın!",
       publishedAt: new Date().toISOString(),
       publisher: currentUser,
-      stops: shareTrip.stops.map((s) => ({ ...s })),
+      stops: finalStops,
       metrics: shareTrip.metrics,
       likes: 0,
+      status: shareStatus,
     };
     commitFeed([shared, ...feed]);
     setShareTrip(null);
     setShareDesc("");
-    toast.success("Gezi toplulukta paylaşıldı!");
+    toast.success(shareStatus === "completed" ? "Tamamlanan gezin toplulukta paylaşıldı!" : "Gezi toplulukta paylaşıldı!");
   };
 
   const toggleLike = (id: string) => {
