@@ -1829,6 +1829,8 @@ function DiscoverPanel({
   onLike,
   onClone,
   onLoginPrompt,
+  onNew,
+  onOpenImage,
 }: {
   feed: SharedTrip[];
   loading: boolean;
@@ -1836,6 +1838,8 @@ function DiscoverPanel({
   onLike: (id: string) => void;
   onClone: (t: SharedTrip) => void;
   onLoginPrompt: () => void;
+  onNew: () => void;
+  onOpenImage: (url: string, stopName: string, note?: string) => void;
 }) {
   const fmtRel = (iso: string) => {
     const diff = Date.now() - new Date(iso).getTime();
@@ -1849,6 +1853,29 @@ function DiscoverPanel({
 
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-4">
+      {/* Premium landing banner */}
+      <div className="relative overflow-hidden rounded-2xl border border-violet-200/60 bg-gradient-to-br from-violet-600 via-indigo-600 to-fuchsia-600 p-5 text-white shadow-xl shadow-violet-500/30">
+        <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
+        <div className="absolute -bottom-10 -left-10 h-32 w-32 rounded-full bg-fuchsia-300/20 blur-2xl" />
+        <div className="relative">
+          <div className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-[0.1em] backdrop-blur">
+            <Globe className="h-3 w-3" /> Keşfet
+          </div>
+          <h2 className="text-[19px] font-bold leading-tight tracking-tight">
+            Yolculuk Dünyasını Keşfet
+          </h2>
+          <p className="mt-1 text-[12.5px] leading-relaxed text-white/85">
+            Diğer gezginlerin rotalarını incele, kopyala ve kendi maceranı planla.
+          </p>
+          <button
+            onClick={onNew}
+            className="mt-3 inline-flex items-center gap-2 rounded-xl bg-white px-3.5 py-2 text-[12.5px] font-bold text-violet-700 shadow-lg shadow-black/10 transition-all duration-200 hover:shadow-xl active:scale-[0.97] transform-gpu"
+          >
+            <Navigation className="h-3.5 w-3.5" /> Yeni Rota Oluştur
+          </button>
+        </div>
+      </div>
+
       <div className="mb-1 flex items-center justify-between">
         <h2 className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-500">
           Topluluk Rotaları
