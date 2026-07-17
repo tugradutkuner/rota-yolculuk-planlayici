@@ -360,6 +360,7 @@ interface SharedTrip {
   metrics: { distance: string; duration: string };
   likes: number;
   likedByMe?: boolean;
+  status?: "planned" | "completed";
 }
 
 const AUTH_KEY = "trip_planner_current_user";
