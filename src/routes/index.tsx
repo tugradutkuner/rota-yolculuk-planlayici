@@ -1596,7 +1596,7 @@ function RoutePlanner() {
           onClick={() => setShareTrip(null)}
         >
           <div
-            className="w-full max-w-md rounded-2xl border border-white/60 bg-white/85 p-6 shadow-2xl backdrop-blur-2xl transform-gpu ring-1 ring-slate-200/60"
+            className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border border-white/60 bg-white/85 p-6 shadow-2xl backdrop-blur-2xl transform-gpu ring-1 ring-slate-200/60"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-start gap-3">
@@ -1615,17 +1615,97 @@ function RoutePlanner() {
                 <X className="h-4 w-4" />
               </button>
             </div>
+
+            {/* Trip status toggle */}
+            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-[0.1em] text-slate-500">
+              Gezi Durumu
+            </label>
+            <div className="mb-4 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setShareStatus("planned")}
+                className={`flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-[12.5px] font-semibold transition-all active:scale-[0.97] transform-gpu ${
+                  shareStatus === "planned"
+                    ? "border-sky-300 bg-sky-50 text-sky-700 ring-2 ring-sky-200"
+                    : "border-slate-200 bg-white text-slate-500 hover:border-sky-200 hover:text-sky-700"
+                }`}
+              >
+                <Calendar className="h-4 w-4" /> Planlanan Gezi
+              </button>
+              <button
+                type="button"
+                onClick={() => setShareStatus("completed")}
+                className={`flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-[12.5px] font-semibold transition-all active:scale-[0.97] transform-gpu ${
+                  shareStatus === "completed"
+                    ? "border-emerald-300 bg-emerald-50 text-emerald-700 ring-2 ring-emerald-200"
+                    : "border-slate-200 bg-white text-slate-500 hover:border-emerald-200 hover:text-emerald-700"
+                }`}
+              >
+                <Check className="h-4 w-4" /> Tamamlanan Gezi
+              </button>
+            </div>
+
             <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-[0.1em] text-slate-500">
               Kısa Açıklama
             </label>
             <textarea
-              autoFocus
               rows={3}
               value={shareDesc}
               onChange={(e) => setShareDesc(e.target.value)}
               placeholder="Örn. Yaz için mükemmel Balkan rotası!"
               className="w-full resize-none rounded-xl border-0 bg-slate-50/70 px-4 py-3 text-sm text-slate-800 outline-none ring-1 ring-slate-200 transition placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-violet-500/40"
             />
+
+            {/* Per-stop media (completed only) */}
+            {shareStatus === "completed" && (
+              <div className="mt-4 space-y-3 rounded-xl border border-emerald-200/70 bg-emerald-50/40 p-3">
+                <p className="text-[11.5px] font-semibold text-emerald-800">
+                  📸 Rota Fotoğrafları — her durak için bir görsel URL'si ekleyin (Insta360, kamera, vb.).
+                </p>
+                {shareStops.map((s, si) => (
+                  <div key={s.id} className="rounded-lg bg-white/80 p-2.5 ring-1 ring-emerald-100">
+                    <div className="mb-1.5 flex items-center gap-1.5 text-[11.5px] font-bold text-slate-700">
+                      <MapPin className="h-3 w-3 text-emerald-600" />
+                      <span className="truncate">{s.address.split(",")[0] || `Durak ${si + 1}`}</span>
+                    </div>
+                    <div className="space-y-1.5">
+                      {(s.media && s.media.length ? s.media : [""]).map((url, mi) => (
+                        <div key={mi} className="flex gap-1.5">
+                          <input
+                            type="url"
+                            value={url}
+                            onChange={(e) => {
+                              const next = [...shareStops];
+                              const media = [...(next[si].media ?? [""])];
+                              if (!media.length) media.push("");
+                              media[mi] = e.target.value;
+                              next[si] = { ...next[si], media };
+                              setShareStops(next);
+                            }}
+                            placeholder="https://... (görsel URL'si)"
+                            className="flex-1 rounded-lg border-0 bg-slate-50/80 px-2.5 py-1.5 text-[12px] text-slate-800 outline-none ring-1 ring-slate-200 transition placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-emerald-500/40"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const next = [...shareStops];
+                              const media = [...(next[si].media ?? []), ""];
+                              next[si] = { ...next[si], media };
+                              setShareStops(next);
+                            }}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-emerald-600 ring-1 ring-emerald-200 transition hover:bg-emerald-50"
+                            title="Görsel ekle"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div className="mt-5 flex justify-end gap-2">
               <button
                 onClick={() => setShareTrip(null)}
@@ -1639,6 +1719,40 @@ function RoutePlanner() {
               >
                 <Share2 className="h-4 w-4" /> Paylaş
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox overlay */}
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/80 p-4 backdrop-blur-xl animate-fade-in"
+          onClick={() => setLightbox(null)}
+        >
+          <button
+            onClick={() => setLightbox(null)}
+            className="absolute right-5 top-5 flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white backdrop-blur-md transition hover:bg-white/20"
+            aria-label="Kapat"
+          >
+            <X className="h-5 w-5" />
+          </button>
+          <div
+            className="relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-white/20 bg-white/5 shadow-2xl backdrop-blur-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={lightbox.url}
+              alt={lightbox.stopName}
+              className="max-h-[70vh] w-full object-contain bg-black/40"
+            />
+            <div className="border-t border-white/10 bg-slate-900/60 p-5 text-white">
+              <div className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.1em] text-white/70">
+                <MapPin className="h-3.5 w-3.5" /> {lightbox.stopName}
+              </div>
+              {lightbox.note && (
+                <p className="mt-2 text-[13.5px] leading-relaxed text-white/90">{lightbox.note}</p>
+              )}
             </div>
           </div>
         </div>
