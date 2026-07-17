@@ -300,6 +300,7 @@ type Stop = {
   socialNoteOpen?: boolean;
   placeId?: string;
   location?: { lat: number; lng: number };
+  media?: string[]; // image URLs for completed trips
 };
 
 type Metrics = { distanceKm: number; durationMin: number } | null;
