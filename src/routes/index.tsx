@@ -13,8 +13,6 @@ import {
   Navigation,
   Loader2,
   GripVertical,
-  ChevronLeft,
-  ChevronRight,
   FileText,
   Timer,
   Sparkles,
@@ -1076,79 +1074,171 @@ function RoutePlanner() {
 
 
   return (
-    <div className="relative flex h-screen flex-col bg-gradient-to-br from-slate-50 via-indigo-50/40 to-violet-50/40 text-slate-900 lg:flex-row">
-      <aside
-        style={{ backgroundColor: "rgba(255,255,255,0.8)", willChange: "transform, width" }}
-        className={`flex flex-col overflow-hidden border-slate-200/50 shadow-2xl shadow-slate-900/[0.04] backdrop-blur-2xl transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] transform-gpu lg:h-screen lg:border-r ${
+    <div className="relative h-screen w-screen overflow-hidden text-slate-900">
+      <div ref={mapDivRef} className="absolute inset-0 h-full w-full" />
+      {!mapReady && !mapError && (
+        <div className="absolute inset-0 flex items-center justify-center bg-slate-100 text-sm text-slate-500">
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Harita yükleniyor...
+        </div>
+      )}
+      {mapError && (
+        <div className="absolute inset-0 flex items-center justify-center bg-slate-100 p-6 text-center">
+          <div className="max-w-sm">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+              <MapPin className="h-6 w-6" />
+            </div>
+            <p className="text-sm text-slate-600">{mapError}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Floating top navigation: Yeni Rota / Gezilerim / Keşfet + profile */}
+      <div className="absolute inset-x-4 top-4 z-30 flex items-start gap-3">
+        <div className="flex items-center gap-1 rounded-full border border-slate-200/50 bg-white/85 p-1 shadow-xl shadow-slate-900/10 backdrop-blur-xl">
+          <button
+            type="button"
+            onClick={() => setActiveTab("new")}
+            className={`flex items-center gap-1.5 rounded-full px-4 py-2.5 text-[13px] font-semibold transition-all duration-200 ${
+              activeTab === "new" ? "bg-slate-900 text-white shadow-md" : "text-slate-600 hover:bg-slate-100"
+            }`}
+          >
+            <Navigation className="h-3.5 w-3.5" /> Yeni Rota
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (!currentUser) {
+                toast.error("Gezilerini görmek için giriş yapmalısın.");
+                openLogin("signin");
+                return;
+              }
+              setActiveTab("trips");
+            }}
+            className={`flex items-center gap-1.5 rounded-full px-4 py-2.5 text-[13px] font-semibold transition-all duration-200 ${
+              activeTab === "trips" ? "bg-slate-900 text-white shadow-md" : "text-slate-600 hover:bg-slate-100"
+            }`}
+          >
+            <Bookmark className="h-3.5 w-3.5" /> Gezilerim
+            {savedTrips.length > 0 && (
+              <span
+                className={`ml-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                  activeTab === "trips" ? "bg-white/20 text-white" : "bg-violet-100 text-violet-700"
+                }`}
+              >
+                {savedTrips.length}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={switchToDiscover}
+            className={`flex items-center gap-1.5 rounded-full px-4 py-2.5 text-[13px] font-semibold transition-all duration-200 ${
+              activeTab === "discover" ? "bg-slate-900 text-white shadow-md" : "text-slate-600 hover:bg-slate-100"
+            }`}
+          >
+            <Compass className="h-3.5 w-3.5" /> Keşfet
+          </button>
+        </div>
+
+        <div className="ml-auto shrink-0">
+          {currentUser ? (
+            <div className="relative">
+              <button
+                onClick={() => setUserMenuOpen((v) => !v)}
+                className="flex items-center gap-2 rounded-full border border-slate-200/60 bg-white/90 py-1 pl-1 pr-3 text-[13px] font-semibold text-slate-700 shadow-xl shadow-violet-500/10 backdrop-blur-xl transition-all duration-200 hover:bg-white hover:shadow-2xl hover:shadow-violet-500/20 active:scale-[0.97] transform-gpu"
+              >
+                <img
+                  src={currentUser.avatarUrl}
+                  alt={currentUser.username}
+                  className="h-8 w-8 rounded-full ring-2 ring-white"
+                />
+                <span className="hidden max-w-[120px] truncate sm:inline">@{currentUser.username}</span>
+                <ChevronDown
+                  className={`h-4 w-4 text-slate-400 transition-transform ${userMenuOpen ? "rotate-180" : ""}`}
+                />
+              </button>
+              {userMenuOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={() => setUserMenuOpen(false)}
+                  />
+                  <div className="absolute right-0 mt-2 w-64 origin-top-right rounded-2xl border border-slate-200/60 bg-white/95 p-2 shadow-2xl backdrop-blur-2xl animate-fade-in z-20">
+                    <div className="flex items-center gap-3 rounded-xl px-3 py-3">
+                      <img
+                        src={currentUser.avatarUrl}
+                        alt={currentUser.username}
+                        className="h-11 w-11 rounded-full ring-2 ring-violet-100"
+                      />
+                      <div className="min-w-0">
+                        <p className="truncate text-[13px] font-bold text-slate-900">
+                          @{currentUser.username}
+                        </p>
+                        <p className="truncate text-[11px] text-slate-500">{currentUser.bio}</p>
+                      </div>
+                    </div>
+                    <div className="my-1 h-px bg-slate-100" />
+                    <button
+                      onClick={() => {
+                        setUserMenuOpen(false);
+                        toast("Profil sayfası yakında geliyor ✨");
+                      }}
+                      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium text-slate-700 transition hover:bg-violet-50 hover:text-violet-700"
+                    >
+                      <UserIcon className="h-4 w-4" /> Profilim
+                    </button>
+                    <button
+                      onClick={() => {
+                        setUserMenuOpen(false);
+                        setActiveTab("trips");
+                      }}
+                      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium text-slate-700 transition hover:bg-violet-50 hover:text-violet-700"
+                    >
+                      <Bookmark className="h-4 w-4" /> Gezilerim
+                    </button>
+                    <div className="my-1 h-px bg-slate-100" />
+                    <button
+                      onClick={logout}
+                      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium text-rose-600 transition hover:bg-rose-50"
+                    >
+                      <LogOut className="h-4 w-4" /> Çıkış Yap
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          ) : (
+            <button
+              onClick={() => openLogin("signin")}
+              className="flex items-center gap-2 rounded-full bg-gradient-to-br from-violet-600 to-indigo-600 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-violet-500/30 transition-all duration-200 hover:shadow-xl hover:shadow-violet-500/40 active:scale-[0.97] transform-gpu"
+            >
+              <LogIn className="h-4 w-4" /> Giriş Yap
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Floating bottom sheet: compact route builder, or a large browse panel for Gezilerim/Keşfet */}
+      <div
+        className={`absolute inset-x-0 bottom-0 z-20 flex flex-col rounded-t-3xl border-t border-slate-200/60 bg-white/95 shadow-2xl shadow-slate-900/20 backdrop-blur-2xl transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
           sidebarOpen
-            ? "w-full border-b lg:w-[440px]"
-            : "h-0 w-full border-b-0 lg:h-screen lg:w-0 lg:border-r-0"
+            ? activeTab === "new"
+              ? "h-[min(56vh,620px)]"
+              : "h-[min(84vh,900px)]"
+            : "h-[52px]"
         }`}
       >
-        <div className="flex h-full w-full flex-col lg:w-[440px]">
-          <header className="flex items-center gap-3 border-b border-slate-200/60 px-6 py-5">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600 text-white shadow-lg shadow-violet-500/30">
-              <Navigation className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <h1 className="truncate text-[15px] font-bold leading-tight tracking-tight text-slate-900">Rota Planlayıcı</h1>
-              <p className="truncate text-xs font-medium text-slate-500">Çok duraklı rotanızı planlayın</p>
-            </div>
-          </header>
+        <button
+          type="button"
+          onClick={() => setSidebarOpen((v) => !v)}
+          aria-label={sidebarOpen ? "Paneli küçült" : "Paneli genişlet"}
+          className="flex w-full shrink-0 items-center justify-center py-2.5"
+        >
+          <span className="h-1.5 w-10 rounded-full bg-slate-300" />
+        </button>
 
-          <div className="border-b border-slate-200/60 px-6 pt-4 pb-3">
-            <div className="relative flex items-center gap-1 rounded-xl bg-slate-100/80 p-1 shadow-inner">
-              <span
-                aria-hidden
-                className="absolute top-1 bottom-1 w-[calc(33.333%-3px)] rounded-lg bg-white shadow-sm shadow-slate-900/10 ring-1 ring-slate-200/60 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] transform-gpu"
-                style={{
-                  transform: `translateX(${
-                    activeTab === "new" ? "0%" : activeTab === "trips" ? "100%" : "200%"
-                  })`,
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => setActiveTab("new")}
-                className={`relative z-[1] flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[12.5px] font-semibold transition-colors duration-200 ${
-                  activeTab === "new" ? "text-violet-700" : "text-slate-500 hover:text-slate-700"
-                }`}
-              >
-                <Navigation className="h-3.5 w-3.5" /> Yeni Rota
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (!currentUser) {
-                    toast.error("Gezilerini görmek için giriş yapmalısın.");
-                    openLogin("signin");
-                    return;
-                  }
-                  setActiveTab("trips");
-                }}
-                className={`relative z-[1] flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[12.5px] font-semibold transition-colors duration-200 ${
-                  activeTab === "trips" ? "text-violet-700" : "text-slate-500 hover:text-slate-700"
-                }`}
-              >
-                <Bookmark className="h-3.5 w-3.5" /> Gezilerim
-                {savedTrips.length > 0 && (
-                  <span className="ml-0.5 rounded-full bg-violet-100 px-1.5 py-0.5 text-[10px] font-bold text-violet-700">
-                    {savedTrips.length}
-                  </span>
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={switchToDiscover}
-                className={`relative z-[1] flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[12.5px] font-semibold transition-colors duration-200 ${
-                  activeTab === "discover" ? "text-violet-700" : "text-slate-500 hover:text-slate-700"
-                }`}
-              >
-                <Compass className="h-3.5 w-3.5" /> Keşfet
-              </button>
-            </div>
-          </div>
-
+        {sidebarOpen && (
+        <div className="flex min-h-0 flex-1 flex-col">
           {activeTab === "trips" ? (
             <SavedTripsPanel
               trips={savedTrips}
@@ -1311,112 +1401,8 @@ function RoutePlanner() {
           </div>
           )}
         </div>
-      </aside>
-
-      <section className="relative flex-1 min-h-[50vh] lg:min-h-0">
-        <div ref={mapDivRef} className="absolute inset-0 h-full w-full" />
-        {!mapReady && !mapError && (
-          <div className="absolute inset-0 flex items-center justify-center bg-slate-100 text-sm text-slate-500">
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Harita yükleniyor...
-          </div>
         )}
-        {mapError && (
-          <div className="absolute inset-0 flex items-center justify-center bg-slate-100 p-6 text-center">
-            <div className="max-w-sm">
-              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-600">
-                <MapPin className="h-6 w-6" />
-              </div>
-              <p className="text-sm text-slate-600">{mapError}</p>
-            </div>
-          </div>
-        )}
-
-        <button
-          onClick={() => setSidebarOpen((v) => !v)}
-          aria-label={sidebarOpen ? "Paneli gizle" : "Paneli göster"}
-          className="absolute left-4 top-4 z-10 hidden h-11 w-11 items-center justify-center rounded-full border border-slate-200/50 bg-white/90 text-slate-600 shadow-xl shadow-violet-500/20 backdrop-blur-xl transition-all duration-300 hover:scale-105 hover:bg-white hover:text-violet-600 hover:shadow-2xl hover:shadow-violet-500/30 active:scale-95 lg:flex transform-gpu"
-        >
-          {sidebarOpen ? <ChevronLeft className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
-        </button>
-
-        {/* Top-right auth affordance */}
-        <div className="absolute right-4 top-4 z-20">
-          {currentUser ? (
-            <div className="relative">
-              <button
-                onClick={() => setUserMenuOpen((v) => !v)}
-                className="flex items-center gap-2 rounded-full border border-slate-200/60 bg-white/90 py-1 pl-1 pr-3 text-[13px] font-semibold text-slate-700 shadow-xl shadow-violet-500/10 backdrop-blur-xl transition-all duration-200 hover:bg-white hover:shadow-2xl hover:shadow-violet-500/20 active:scale-[0.97] transform-gpu"
-              >
-                <img
-                  src={currentUser.avatarUrl}
-                  alt={currentUser.username}
-                  className="h-8 w-8 rounded-full ring-2 ring-white"
-                />
-                <span className="hidden max-w-[120px] truncate sm:inline">@{currentUser.username}</span>
-                <ChevronDown
-                  className={`h-4 w-4 text-slate-400 transition-transform ${userMenuOpen ? "rotate-180" : ""}`}
-                />
-              </button>
-              {userMenuOpen && (
-                <>
-                  <div
-                    className="fixed inset-0 z-10"
-                    onClick={() => setUserMenuOpen(false)}
-                  />
-                  <div className="absolute right-0 mt-2 w-64 origin-top-right rounded-2xl border border-slate-200/60 bg-white/95 p-2 shadow-2xl backdrop-blur-2xl animate-fade-in z-20">
-                    <div className="flex items-center gap-3 rounded-xl px-3 py-3">
-                      <img
-                        src={currentUser.avatarUrl}
-                        alt={currentUser.username}
-                        className="h-11 w-11 rounded-full ring-2 ring-violet-100"
-                      />
-                      <div className="min-w-0">
-                        <p className="truncate text-[13px] font-bold text-slate-900">
-                          @{currentUser.username}
-                        </p>
-                        <p className="truncate text-[11px] text-slate-500">{currentUser.bio}</p>
-                      </div>
-                    </div>
-                    <div className="my-1 h-px bg-slate-100" />
-                    <button
-                      onClick={() => {
-                        setUserMenuOpen(false);
-                        toast("Profil sayfası yakında geliyor ✨");
-                      }}
-                      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium text-slate-700 transition hover:bg-violet-50 hover:text-violet-700"
-                    >
-                      <UserIcon className="h-4 w-4" /> Profilim
-                    </button>
-                    <button
-                      onClick={() => {
-                        setUserMenuOpen(false);
-                        setActiveTab("trips");
-                      }}
-                      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium text-slate-700 transition hover:bg-violet-50 hover:text-violet-700"
-                    >
-                      <Bookmark className="h-4 w-4" /> Gezilerim
-                    </button>
-                    <div className="my-1 h-px bg-slate-100" />
-                    <button
-                      onClick={logout}
-                      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium text-rose-600 transition hover:bg-rose-50"
-                    >
-                      <LogOut className="h-4 w-4" /> Çıkış Yap
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          ) : (
-            <button
-              onClick={() => openLogin("signin")}
-              className="flex items-center gap-2 rounded-full bg-gradient-to-br from-violet-600 to-indigo-600 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-violet-500/30 transition-all duration-200 hover:shadow-xl hover:shadow-violet-500/40 active:scale-[0.97] transform-gpu"
-            >
-              <LogIn className="h-4 w-4" /> Giriş Yap
-            </button>
-          )}
-        </div>
-      </section>
+      </div>
 
       {saveModalOpen && (
         <div
@@ -1813,13 +1799,14 @@ function SavedTripsPanel({
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-6 space-y-3">
-      <div className="mb-1 flex items-center justify-between">
+    <div className="flex-1 overflow-y-auto p-6">
+      <div className="mb-4 flex items-center justify-between">
         <h2 className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-500">
           Kayıtlı Geziler
         </h2>
         <span className="text-[11px] font-medium text-slate-400">{trips.length} gezi</span>
       </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
       {trips.map((trip) => {
         const filledStops = trip.stops.filter((s) => s.address.trim().length > 0);
         const isConfirming = confirmDeleteId === trip.id;
@@ -1894,6 +1881,7 @@ function SavedTripsPanel({
           </div>
         );
       })}
+      </div>
     </div>
   );
 }
@@ -2000,8 +1988,8 @@ function DiscoverPanel({
       </div>
 
       {loading ? (
-        <div className="space-y-3">
-          {[0, 1, 2].map((i) => (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {[0, 1, 2, 3, 4, 5].map((i) => (
             <div
               key={i}
               className="animate-pulse rounded-2xl border border-slate-200/70 bg-white p-4 shadow-sm"
@@ -2035,7 +2023,8 @@ function DiscoverPanel({
           </p>
         </div>
       ) : (
-        feed.map((trip) => {
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {feed.map((trip) => {
           const filled = trip.stops.filter((s) => s.address.trim().length > 0);
           return (
             <article
@@ -2185,7 +2174,8 @@ function DiscoverPanel({
               </div>
             </article>
           );
-        })
+        })}
+        </div>
       )}
     </div>
   );
