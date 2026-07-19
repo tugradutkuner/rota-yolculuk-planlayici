@@ -652,11 +652,14 @@ function RoutePlanner() {
           // Sync the dragged route back into the stop list: keep stops whose
           // location still matches a point on the new route, reverse-geocode
           // any brand-new point (created by dragging the line itself).
-          const req = result.request;
+          // NOTE: read points from routes[0].legs (always resolved LatLngs),
+          // not from result.request (which can still be plain address
+          // strings if the user typed an address without picking a
+          // suggestion), otherwise .lat()/.lng() calls fail silently.
+          const route = result.routes[0];
           const rawPoints: any[] = [
-            req.origin,
-            ...((req.waypoints ?? []).map((w: any) => w.location)),
-            req.destination,
+            route.legs[0].start_location,
+            ...route.legs.map((leg: any) => leg.end_location),
           ];
           setStops((prev) => {
             const filled = prev.filter((s) => s.address.trim().length > 0);
