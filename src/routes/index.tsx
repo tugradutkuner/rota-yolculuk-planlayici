@@ -809,6 +809,12 @@ function RoutePlanner() {
     setMetrics(null);
     setLegDurations([]);
     setStatusMsg("Kayıtlı gezi yüklendi. Güncel rota için 'Rotayı Hesapla' butonunu kullanın.");
+    setAiText(null);
+    setAiError(null);
+    setChatMessages([]);
+    setChatError(null);
+    setChatInput("");
+    clearMapRoute();
     setActiveTab("new");
     toast.success(`"${trip.title}" yüklendi.`);
   };
@@ -952,6 +958,12 @@ function RoutePlanner() {
     setStops(trip.stops.map((s) => ({ ...s, id: uid() })));
     setMetrics(null);
     setLegDurations([]);
+    setAiText(null);
+    setAiError(null);
+    setChatMessages([]);
+    setChatError(null);
+    setChatInput("");
+    clearMapRoute();
     setActiveTab("new");
     setStatusMsg(`"${trip.title}" rotası kendi planına kopyalandı. Hesaplamak için 'Rotayı Hesapla' butonunu kullan.`);
     toast.success(`"${trip.title}" rotan kopyalandı!`);
@@ -961,6 +973,23 @@ function RoutePlanner() {
     setActiveTab("discover");
     setFeedLoading(true);
     setTimeout(() => setFeedLoading(false), 550);
+  };
+
+  const startNewRoute = () => {
+    setStops([
+      { id: uid(), address: "", datetime: "" },
+      { id: uid(), address: "", datetime: "" },
+    ]);
+    setMetrics(null);
+    setLegDurations([]);
+    setStatusMsg(null);
+    setAiText(null);
+    setAiError(null);
+    setChatMessages([]);
+    setChatError(null);
+    setChatInput("");
+    clearMapRoute();
+    setActiveTab("new");
   };
 
 
@@ -1062,6 +1091,15 @@ function RoutePlanner() {
         applyRoute(0);
       },
     );
+  };
+
+  const clearMapRoute = () => {
+    altPolylinesRef.current.forEach((p) => p.setMap(null));
+    altPolylinesRef.current = [];
+    lastResultRef.current = null;
+    // DirectionsRenderer has no official "clear" method; setting directions
+    // to an empty result removes the previously drawn polyline + markers.
+    rendererRef.current?.setDirections?.({ routes: [] } as any);
   };
 
   const applyMetrics = (result: any, idx: number) => {
@@ -1225,7 +1263,7 @@ function RoutePlanner() {
         <div className="flex items-center gap-1 rounded-full border border-slate-200/50 bg-white/85 p-1 shadow-xl shadow-slate-900/10 backdrop-blur-xl">
           <button
             type="button"
-            onClick={() => setActiveTab("new")}
+            onClick={startNewRoute}
             className={`flex items-center gap-1.5 rounded-full px-4 py-2.5 text-[13px] font-semibold transition-all duration-200 ${
               activeTab === "new" ? "bg-slate-900 text-white shadow-md" : "text-slate-600 hover:bg-slate-100"
             }`}
@@ -1375,7 +1413,7 @@ function RoutePlanner() {
               onLoad={loadTrip}
               onDelete={deleteTrip}
               onShare={openShareModal}
-              onNew={() => setActiveTab("new")}
+              onNew={startNewRoute}
             />
           ) : activeTab === "discover" ? (
             <DiscoverPanel
@@ -1385,7 +1423,7 @@ function RoutePlanner() {
               onLike={toggleLike}
               onClone={cloneSharedTrip}
               onLoginPrompt={openLogin}
-              onNew={() => setActiveTab("new")}
+              onNew={startNewRoute}
               onOpenImage={(url, stopName, note) => setLightbox({ url, stopName, note })}
             />
           ) : (
