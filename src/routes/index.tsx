@@ -650,81 +650,7 @@ function RoutePlanner() {
             { featureType: "transit", stylers: [{ visibility: "off" }] },
           ],
         });
-        rendererRef.current = new g.maps.DirectionsRenderer({
-          map: mapRef.current,
-          draggable: true,
-          suppressMarkers: false,
-          polylineOptions: {
-            strokeColor: "#2563eb",
-            strokeWeight: 6,
-            strokeOpacity: 0.9,
-          },
-        });
-        rendererRef.current.addListener("directions_changed", () => {
-          const result = rendererRef.current?.getDirections();
-          if (!result || !result.routes?.[0]) return;
-          lastResultRef.current = result;
-
-          // Sync the dragged route back into the stop list: keep stops whose
-          // location still matches a point on the new route, reverse-geocode
-          // any brand-new point (created by dragging the line itself).
-          // NOTE: read points from routes[0].legs (always resolved LatLngs),
-          // not from result.request (which can still be plain address
-          // strings if the user typed an address without picking a
-          // suggestion), otherwise .lat()/.lng() calls fail silently.
-          const route = result.routes[0];
-          const rawPoints: any[] = [
-            route.legs[0].start_location,
-            ...route.legs.map((leg: any) => leg.end_location),
-          ];
-          setStops((prev) => {
-            const filled = prev.filter((s) => s.address.trim().length > 0);
-            const emptyTail = prev.filter((s) => s.address.trim().length === 0);
-            const used = new Array(filled.length).fill(false);
-            const next: Stop[] = rawPoints.map((pt) => {
-              const lat = typeof pt.lat === "function" ? pt.lat() : pt.lat;
-              const lng = typeof pt.lng === "function" ? pt.lng() : pt.lng;
-              let matchIdx = -1;
-              for (let i = 0; i < filled.length; i++) {
-                if (used[i]) continue;
-                const loc = filled[i].location;
-                if (loc && Math.abs(loc.lat - lat) < 0.0008 && Math.abs(loc.lng - lng) < 0.0008) {
-                  matchIdx = i;
-                  break;
-                }
-              }
-              if (matchIdx >= 0) {
-                used[matchIdx] = true;
-                return { ...filled[matchIdx], location: { lat, lng } };
-              }
-              const newStop: Stop = {
-                id: uid(),
-                address: "Konum belirleniyor...",
-                datetime: "",
-                location: { lat, lng },
-              };
-              const geocoder = new g.maps.Geocoder();
-              geocoder.geocode({ location: { lat, lng } }, (results: any, status: string) => {
-                if (status === "OK" && results?.[0]) {
-                  setStops((cur) =>
-                    cur.map((s) =>
-                      s.id === newStop.id
-                        ? { ...s, address: results[0].formatted_address, placeId: results[0].place_id }
-                        : s,
-                    ),
-                  );
-                }
-              });
-              return newStop;
-            });
-            return [...next, ...emptyTail];
-          });
-
-          altPolylinesRef.current.forEach((p) => p.setMap(null));
-          altPolylinesRef.current = [];
-          applyMetrics(result, 0);
-          setStatusMsg(null);
-        });
+        attachDirectionsRenderer();
         setMapReady(true);
       })
       .catch((e) => {
@@ -1093,6 +1019,86 @@ function RoutePlanner() {
     );
   };
 
+  const attachDirectionsRenderer = () => {
+    const g = window.google;
+    if (!g || !mapRef.current) return;
+    rendererRef.current = new g.maps.DirectionsRenderer({
+      map: mapRef.current,
+      draggable: true,
+      suppressMarkers: false,
+      polylineOptions: {
+        strokeColor: "#2563eb",
+        strokeWeight: 6,
+        strokeOpacity: 0.9,
+      },
+    });
+    rendererRef.current.addListener("directions_changed", () => {
+      const result = rendererRef.current?.getDirections();
+      if (!result || !result.routes?.[0]) return;
+      lastResultRef.current = result;
+
+      // Sync the dragged route back into the stop list: keep stops whose
+      // location still matches a point on the new route, reverse-geocode
+      // any brand-new point (created by dragging the line itself).
+      // NOTE: read points from routes[0].legs (always resolved LatLngs),
+      // not from result.request (which can still be plain address
+      // strings if the user typed an address without picking a
+      // suggestion), otherwise .lat()/.lng() calls fail silently.
+      const route = result.routes[0];
+      const rawPoints: any[] = [
+        route.legs[0].start_location,
+        ...route.legs.map((leg: any) => leg.end_location),
+      ];
+      setStops((prev) => {
+        const filled = prev.filter((s) => s.address.trim().length > 0);
+        const emptyTail = prev.filter((s) => s.address.trim().length === 0);
+        const used = new Array(filled.length).fill(false);
+        const next: Stop[] = rawPoints.map((pt) => {
+          const lat = typeof pt.lat === "function" ? pt.lat() : pt.lat;
+          const lng = typeof pt.lng === "function" ? pt.lng() : pt.lng;
+          let matchIdx = -1;
+          for (let i = 0; i < filled.length; i++) {
+            if (used[i]) continue;
+            const loc = filled[i].location;
+            if (loc && Math.abs(loc.lat - lat) < 0.0008 && Math.abs(loc.lng - lng) < 0.0008) {
+              matchIdx = i;
+              break;
+            }
+          }
+          if (matchIdx >= 0) {
+            used[matchIdx] = true;
+            return { ...filled[matchIdx], location: { lat, lng } };
+          }
+          const newStop: Stop = {
+            id: uid(),
+            address: "Konum belirleniyor...",
+            datetime: "",
+            location: { lat, lng },
+          };
+          const geocoder = new g.maps.Geocoder();
+          geocoder.geocode({ location: { lat, lng } }, (results: any, status: string) => {
+            if (status === "OK" && results?.[0]) {
+              setStops((cur) =>
+                cur.map((s) =>
+                  s.id === newStop.id
+                    ? { ...s, address: results[0].formatted_address, placeId: results[0].place_id }
+                    : s,
+                ),
+              );
+            }
+          });
+          return newStop;
+        });
+        return [...next, ...emptyTail];
+      });
+
+      altPolylinesRef.current.forEach((p) => p.setMap(null));
+      altPolylinesRef.current = [];
+      applyMetrics(result, 0);
+      setStatusMsg(null);
+    });
+  };
+
   const clearMapRoute = () => {
     try {
       altPolylinesRef.current.forEach((p) => p.setMap(null));
@@ -1101,17 +1107,18 @@ function RoutePlanner() {
     }
     altPolylinesRef.current = [];
     lastResultRef.current = null;
-    // DirectionsRenderer has no official "clear" method, and calling
-    // setDirections with an empty routes array can throw inside Google's
-    // own rendering code (it tries to read routes[0] immediately). Detaching
-    // and reattaching the renderer from the map is the reliable way to wipe
-    // the previously drawn polyline + markers without risking an exception
-    // that would abort whatever reset logic runs after this call.
+    // A DirectionsRenderer keeps its last-set directions internally even
+    // after setMap(null) + setMap(map) — that only toggles visibility, so
+    // the old route/markers pop right back. The reliable clear is to
+    // detach and throw away the old renderer, then create a brand new one.
     try {
       rendererRef.current?.setMap(null);
-      if (mapRef.current) {
-        rendererRef.current?.setMap(mapRef.current);
-      }
+    } catch {
+      /* ignore */
+    }
+    rendererRef.current = null;
+    try {
+      attachDirectionsRenderer();
     } catch {
       /* ignore */
     }
