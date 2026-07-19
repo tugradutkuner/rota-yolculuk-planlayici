@@ -276,7 +276,7 @@ function WeatherBadge({
 // GOOGLE MAPS API KEY — Buraya kendi Google Maps API anahtarınızı yapıştırın
 // ============================================================================
 const GOOGLE_MAPS_API_KEY = "AIzaSyC1Wp8TBZcVcwKikraqgslNwGcTogjgPYk";
-const GOOGLE_MAPS_LIBRARIES = "places,geometry";
+const GOOGLE_MAPS_LIBRARIES = "places,geometry,routes,marker";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -526,7 +526,17 @@ function loadGoogleMaps(): Promise<void> {
       reject(new Error("API_KEY_MISSING"));
       return;
     }
-    window.initGMaps = () => resolve();
+    window.initGMaps = () => {
+      const g = window.google;
+      Promise.all([
+        g.maps.importLibrary("routes"),
+        g.maps.importLibrary("places"),
+        g.maps.importLibrary("geometry"),
+        g.maps.importLibrary("marker"),
+      ])
+        .then(() => resolve())
+        .catch((e: unknown) => reject(e instanceof Error ? e : new Error("LIBRARY_IMPORT_ERROR")));
+    };
     const s = document.createElement("script");
     s.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=${GOOGLE_MAPS_LIBRARIES}&language=tr&region=TR&callback=initGMaps&loading=async`;
     s.async = true;
