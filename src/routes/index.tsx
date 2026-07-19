@@ -1094,12 +1094,27 @@ function RoutePlanner() {
   };
 
   const clearMapRoute = () => {
-    altPolylinesRef.current.forEach((p) => p.setMap(null));
+    try {
+      altPolylinesRef.current.forEach((p) => p.setMap(null));
+    } catch {
+      /* ignore */
+    }
     altPolylinesRef.current = [];
     lastResultRef.current = null;
-    // DirectionsRenderer has no official "clear" method; setting directions
-    // to an empty result removes the previously drawn polyline + markers.
-    rendererRef.current?.setDirections?.({ routes: [] } as any);
+    // DirectionsRenderer has no official "clear" method, and calling
+    // setDirections with an empty routes array can throw inside Google's
+    // own rendering code (it tries to read routes[0] immediately). Detaching
+    // and reattaching the renderer from the map is the reliable way to wipe
+    // the previously drawn polyline + markers without risking an exception
+    // that would abort whatever reset logic runs after this call.
+    try {
+      rendererRef.current?.setMap(null);
+      if (mapRef.current) {
+        rendererRef.current?.setMap(mapRef.current);
+      }
+    } catch {
+      /* ignore */
+    }
   };
 
   const applyMetrics = (result: any, idx: number) => {
