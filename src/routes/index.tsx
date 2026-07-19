@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { generateTravelAdvice } from "@/lib/ai-advice.functions";
+import { generateTravelAdvice, chatWithAdvisor } from "@/lib/ai-advice.functions";
 import {
   MapPin,
   Plus,
@@ -41,6 +41,7 @@ import {
   Lock,
   Pin,
   Flag,
+  Send,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -595,6 +596,11 @@ function RoutePlanner() {
   const [aiLocked, setAiLocked] = useState(false);
   const [aiText, setAiText] = useState<string | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [chatMessages, setChatMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
+  const callChatAdvisor = useServerFn(chatWithAdvisor);
   const [activeTab, setActiveTab] = useState<"new" | "trips" | "discover">("discover");
   const [savedTrips, setSavedTrips] = useState<SavedTrip[]>([]);
   const [saveModalOpen, setSaveModalOpen] = useState(false);
@@ -1132,6 +1138,8 @@ function RoutePlanner() {
     setAiLoading(true);
     setAiError(null);
     setAiText(null);
+    setChatMessages([]);
+    setChatError(null);
     try {
       const result = await callAdvice({ data: { stops: list } });
       setAiText(result.text);
@@ -1148,6 +1156,46 @@ function RoutePlanner() {
       }
     } finally {
       setAiLoading(false);
+    }
+  };
+
+  const sendChatMessage = async () => {
+    const message = chatInput.trim();
+    if (!message || chatLoading) return;
+    const list = stops.map((s) => s.address.trim()).filter(Boolean);
+    if (list.length < 2) {
+      setChatError("Lütfen en az iki durak girin.");
+      return;
+    }
+    const history = chatMessages;
+    setChatMessages((prev) => [...prev, { role: "user", content: message }]);
+    setChatInput("");
+    setChatLoading(true);
+    setChatError(null);
+    try {
+      const result = await callChatAdvisor({
+        data: {
+          stops: list,
+          initialAdvice: aiText ?? "",
+          history,
+          message,
+        },
+      });
+      setChatMessages((prev) => [...prev, { role: "assistant", content: result.text }]);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("rate_limited")) {
+        setChatError("OpenAI API kota sınırına ulaşıldı. Lütfen biraz bekleyip tekrar deneyin.");
+      } else if (msg.includes("unauthorized") || msg.includes("missing_api_key")) {
+        setChatError("OpenAI API anahtarı geçersiz veya tanımlı değil.");
+      } else {
+        setChatError("Cevap alınamadı. Lütfen tekrar deneyin.");
+      }
+      // Roll back the optimistic user message so the input can be retried.
+      setChatMessages((prev) => prev.slice(0, -1));
+      setChatInput(message);
+    } finally {
+      setChatLoading(false);
     }
   };
 
@@ -1440,9 +1488,76 @@ function RoutePlanner() {
                     </div>
                   )}
                   {aiText && (
-                    <div className="max-h-80 overflow-y-auto rounded-xl border border-slate-200/60 bg-white p-6 text-[14px] leading-[1.7] text-slate-700 shadow-sm animate-fade-in [&_strong]:font-semibold [&_strong]:text-slate-900 [&_ul]:my-3 [&_ul]:space-y-1.5 [&_li]:leading-[1.65] [&_p]:my-2.5 [&_code]:rounded [&_code]:bg-slate-100 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[12.5px] [&_code]:text-slate-800 [&_blockquote]:my-3 [&_blockquote]:border-l-[3px] [&_blockquote]:border-violet-300 [&_blockquote]:bg-violet-50/40 [&_blockquote]:py-1 [&_blockquote]:pl-4 [&_blockquote]:text-slate-600 [&_blockquote]:italic">
-                      <MiniMarkdown text={aiText} />
-                    </div>
+                    <>
+                      <div className="max-h-80 overflow-y-auto rounded-xl border border-slate-200/60 bg-white p-6 text-[14px] leading-[1.7] text-slate-700 shadow-sm animate-fade-in [&_strong]:font-semibold [&_strong]:text-slate-900 [&_ul]:my-3 [&_ul]:space-y-1.5 [&_li]:leading-[1.65] [&_p]:my-2.5 [&_code]:rounded [&_code]:bg-slate-100 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[12.5px] [&_code]:text-slate-800 [&_blockquote]:my-3 [&_blockquote]:border-l-[3px] [&_blockquote]:border-violet-300 [&_blockquote]:bg-violet-50/40 [&_blockquote]:py-1 [&_blockquote]:pl-4 [&_blockquote]:text-slate-600 [&_blockquote]:italic">
+                        <MiniMarkdown text={aiText} />
+                      </div>
+
+                      <div className="rounded-xl border border-violet-200/60 bg-white/70 p-3">
+                        <p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-violet-600">
+                          <Sparkles className="h-3 w-3" /> Eş-planlayıcına sor
+                        </p>
+
+                        {chatMessages.length > 0 && (
+                          <div className="mb-3 max-h-64 space-y-2.5 overflow-y-auto pr-1">
+                            {chatMessages.map((m, i) => (
+                              <div
+                                key={i}
+                                className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
+                              >
+                                <div
+                                  className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-[13px] leading-[1.55] ${
+                                    m.role === "user"
+                                      ? "bg-slate-900 text-white"
+                                      : "border border-slate-200/70 bg-white text-slate-700 [&_strong]:font-semibold [&_strong]:text-slate-900 [&_ul]:my-1.5 [&_ul]:space-y-1 [&_p]:my-1"
+                                  }`}
+                                >
+                                  {m.role === "assistant" ? <MiniMarkdown text={m.content} /> : m.content}
+                                </div>
+                              </div>
+                            ))}
+                            {chatLoading && (
+                              <div className="flex justify-start">
+                                <div className="flex items-center gap-1.5 rounded-2xl border border-slate-200/70 bg-white px-3.5 py-2 text-[13px] text-slate-400">
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Yazıyor...
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {chatError && (
+                          <div className="mb-2 rounded-lg border border-rose-200 bg-rose-50/80 px-2.5 py-1.5 text-[11.5px] font-medium text-rose-700">
+                            {chatError}
+                          </div>
+                        )}
+
+                        <div className="flex items-end gap-2">
+                          <textarea
+                            value={chatInput}
+                            onChange={(e) => setChatInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && !e.shiftKey) {
+                                e.preventDefault();
+                                sendChatMessage();
+                              }
+                            }}
+                            placeholder="Örn: İzmir'i çıkarsam ne olur? Çocuklu aile için uygun mu?"
+                            rows={1}
+                            className="flex-1 resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-800 placeholder:text-slate-400 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-100"
+                          />
+                          <button
+                            type="button"
+                            onClick={sendChatMessage}
+                            disabled={chatLoading || !chatInput.trim()}
+                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-600 text-white shadow-sm transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
+                            aria-label="Gönder"
+                          >
+                            <Send className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </>
                   )}
                 </div>
               )}

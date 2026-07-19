@@ -57,3 +57,92 @@ export const generateTravelAdvice = createServerFn({ method: "POST" })
     if (!text) throw new Error("empty_response");
     return { text };
   });
+
+// Conversational follow-up: lets the user ask things like "İzmir'i çıkarsam
+// ne olur?" or "çocuklu aile için uygun mu?" about the same route, with the
+// initial advice + prior turns as context. Kept separate from
+// generateTravelAdvice so the original one-shot advice flow is untouched.
+export const chatWithAdvisor = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => {
+    const data = input as {
+      stops?: unknown;
+      initialAdvice?: unknown;
+      history?: unknown;
+      message?: unknown;
+    };
+    if (!data || !Array.isArray(data.stops)) throw new Error("invalid_input");
+    const stops = (data.stops as unknown[])
+      .map((s) => (typeof s === "string" ? s.trim() : ""))
+      .filter((s) => s.length > 0);
+    if (stops.length < 2) throw new Error("not_enough_stops");
+
+    const message = typeof data.message === "string" ? data.message.trim() : "";
+    if (!message) throw new Error("empty_message");
+
+    const initialAdvice = typeof data.initialAdvice === "string" ? data.initialAdvice : "";
+
+    const rawHistory = Array.isArray(data.history) ? data.history : [];
+    const history = rawHistory
+      .filter(
+        (m): m is { role: "user" | "assistant"; content: string } =>
+          !!m &&
+          typeof m === "object" &&
+          (m as { role?: unknown }).role !== undefined &&
+          ((m as { role?: unknown }).role === "user" || (m as { role?: unknown }).role === "assistant") &&
+          typeof (m as { content?: unknown }).content === "string",
+      )
+      .slice(-12); // keep the last 12 turns so the request stays small
+
+    return { stops, initialAdvice, history, message };
+  })
+  .handler(async ({ data }) => {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new Error("missing_api_key");
+    }
+
+    const systemContent = `Sen deneyimli bir Türk seyahat rehberisin ve bir kullanıcıyla birlikte şu rotayı planlıyorsun: ${data.stops.join(" → ")}.${
+      data.initialAdvice
+        ? ` Daha önce şu genel tavsiyeyi vermiştin: """${data.initialAdvice}""". Bu tavsiyeyle tutarlı, onu tamamlayan cevaplar ver.`
+        : ""
+    } Kullanıcı rotada değişiklik önerebilir (bir durağı çıkarmak/eklemek), belirli bir grup için (çocuklu aile, bütçe, evcil hayvan vb.) uygunluk sorabilir ya da pratik bir soru sorabilir. Kısa, net, Türkçe ve markdown formatında, sohbet havasında cevap ver — genel bir rehber değil, doğrudan sorulan soruya odaklı bir cevap ver.`;
+
+    const messages = [
+      { role: "system", content: systemContent },
+      ...data.history.map((m) => ({ role: m.role, content: m.content })),
+      { role: "user", content: data.message },
+    ];
+
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages,
+        temperature: 0.7,
+      }),
+    });
+
+    if (res.status === 429) {
+      throw new Error("rate_limited");
+    }
+    if (res.status === 401 || res.status === 403) {
+      const body = await res.text().catch(() => "");
+      console.error("OpenAI auth error", res.status, body);
+      throw new Error("unauthorized");
+    }
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      console.error("OpenAI upstream error", res.status, body);
+      throw new Error("upstream_error");
+    }
+    const json = (await res.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+    const text = json.choices?.[0]?.message?.content?.trim() ?? "";
+    if (!text) throw new Error("empty_response");
+    return { text };
+  });
