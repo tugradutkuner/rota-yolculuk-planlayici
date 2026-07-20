@@ -1471,6 +1471,20 @@ function RoutePlanner() {
 
       {/* Floating top navigation: Yeni Rota / Gezilerim / Keşfet + profile */}
       <div className="absolute inset-x-4 top-4 z-30 flex items-start gap-3">
+        <div className="hidden shrink-0 items-center gap-2.5 rounded-full border border-slate-200/50 bg-white/85 px-4 py-2 shadow-xl shadow-slate-900/10 backdrop-blur-xl sm:flex">
+          <svg viewBox="0 0 40 40" className="h-7 w-7 shrink-0">
+            <circle cx="20" cy="20" r="18" className="fill-slate-900" />
+            <circle cx="20" cy="20" r="14.5" stroke="currentColor" strokeWidth="0.75" fill="none" className="text-slate-500" />
+            <path d="M20 4v3.2M20 32.8V36M4 20h3.2M32.8 20H36" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" className="text-fuchsia-500" />
+            <path d="M20 12l3 6-3 6-3-6z" className="fill-violet-400" />
+            <path d="M20 12l3 6-3-2-3 2z" fill="white" />
+          </svg>
+          <div className="leading-tight">
+            <p className="font-serif text-[14px] font-bold text-slate-900">Rota Planlayıcı</p>
+            <p className="font-serif text-[10px] italic text-violet-600">yolda ne varsa</p>
+          </div>
+        </div>
+
         <div className="flex items-center gap-1 rounded-full border border-slate-200/50 bg-white/85 p-1 shadow-xl shadow-slate-900/10 backdrop-blur-xl">
           <button
             type="button"
@@ -2332,7 +2346,7 @@ function SavedTripsPanel({
           >
             <div className="mb-2 flex items-start justify-between gap-2">
               <div className="min-w-0 flex-1">
-                <h3 className="truncate text-[14px] font-bold tracking-tight text-slate-900">
+                <h3 className="truncate font-serif text-[15px] font-bold tracking-tight text-slate-900">
                   {trip.title}
                 </h3>
                 <p className="mt-0.5 text-[11px] font-medium text-slate-400">
@@ -2563,7 +2577,7 @@ function DiscoverPanel({
               </header>
 
               <div className="flex items-start gap-2">
-                <h3 className="flex-1 text-[14px] font-bold tracking-tight text-slate-900">
+                <h3 className="flex-1 font-serif text-[15px] font-bold tracking-tight text-slate-900">
                   {trip.title}
                 </h3>
                 {trip.status === "completed" ? (
