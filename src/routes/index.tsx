@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { generateTravelAdvice, chatWithAdvisor } from "@/lib/ai-advice.functions";
+import { generateTravelAdvice, chatWithAdvisor, enrichRoute } from "@/lib/ai-advice.functions";
 import {
   MapPin,
   Plus,
@@ -304,6 +304,19 @@ type Stop = {
 
 type Metrics = { distanceKm: number; durationMin: number } | null;
 
+type EnrichCategory = "manzara" | "yerel_lezzet" | "gizli_yer";
+
+interface EnrichSuggestion {
+  id: string;
+  name: string;
+  city: string;
+  reason: string;
+  category: EnrichCategory;
+  location: { lat: number; lng: number };
+  formattedAddress: string;
+  placeId?: string;
+}
+
 interface SavedTrip {
   id: string;
   title: string;
@@ -601,6 +614,12 @@ function RoutePlanner() {
   const [chatLoading, setChatLoading] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
   const callChatAdvisor = useServerFn(chatWithAdvisor);
+  const callEnrichRoute = useServerFn(enrichRoute);
+  const [enrichSuggestions, setEnrichSuggestions] = useState<EnrichSuggestion[]>([]);
+  const [enrichLoading, setEnrichLoading] = useState(false);
+  const [enrichError, setEnrichError] = useState<string | null>(null);
+  const enrichMarkersRef = useRef<any[]>([]);
+  const enrichInfoWindowRef = useRef<any>(null);
   const [activeTab, setActiveTab] = useState<"new" | "trips" | "discover">("discover");
   const [savedTrips, setSavedTrips] = useState<SavedTrip[]>([]);
   const [saveModalOpen, setSaveModalOpen] = useState(false);
@@ -974,6 +993,7 @@ function RoutePlanner() {
 
   const calculate = () => {
     setStatusMsg(null);
+    clearEnrichment();
     if (!mapReady || !window.google) return;
     const filled = stops.filter((s) => s.address.trim().length > 0);
     if (filled.length < 2) {
@@ -1099,6 +1119,24 @@ function RoutePlanner() {
     });
   };
 
+  const clearEnrichment = () => {
+    try {
+      enrichMarkersRef.current.forEach((m) => {
+        m.map = null;
+      });
+    } catch {
+      /* ignore */
+    }
+    enrichMarkersRef.current = [];
+    try {
+      enrichInfoWindowRef.current?.close();
+    } catch {
+      /* ignore */
+    }
+    setEnrichSuggestions([]);
+    setEnrichError(null);
+  };
+
   const clearMapRoute = () => {
     try {
       altPolylinesRef.current.forEach((p) => p.setMap(null));
@@ -1107,6 +1145,7 @@ function RoutePlanner() {
     }
     altPolylinesRef.current = [];
     lastResultRef.current = null;
+    clearEnrichment();
     // A DirectionsRenderer keeps its last-set directions internally even
     // after setMap(null) + setMap(map) — that only toggles visibility, so
     // the old route/markers pop right back. The reliable clear is to
@@ -1179,6 +1218,156 @@ function RoutePlanner() {
     const m = min % 60;
     return h > 0 ? `${h} sa ${m} dk` : `${m} dk`;
   };
+
+  const ENRICH_CATEGORY_META: Record<EnrichCategory, { label: string; color: string; icon: string }> = {
+    manzara: { label: "Manzara", color: "#0891b2", icon: "🏔️" },
+    yerel_lezzet: { label: "Yerel Lezzet", color: "#d97706", icon: "🍽️" },
+    gizli_yer: { label: "Gizli Yer", color: "#7c3aed", icon: "💎" },
+  };
+
+  const addSuggestionAsStop = (s: EnrichSuggestion) => {
+    setStops((prev) => {
+      const newStop: Stop = {
+        id: uid(),
+        address: s.formattedAddress,
+        datetime: "",
+        placeId: s.placeId,
+        location: s.location,
+      };
+      if (prev.length < 2) return [...prev, newStop];
+      return [...prev.slice(0, -1), newStop, prev[prev.length - 1]];
+    });
+    setEnrichSuggestions((prev) => prev.filter((x) => x.id !== s.id));
+    const marker = enrichMarkersRef.current.find((m) => m.__suggestionId === s.id);
+    if (marker) marker.map = null;
+    enrichMarkersRef.current = enrichMarkersRef.current.filter((m) => m.__suggestionId !== s.id);
+    enrichInfoWindowRef.current?.close();
+    toast.success(`"${s.name}" rotana eklendi.`);
+  };
+
+  const dismissSuggestion = (id: string) => {
+    setEnrichSuggestions((prev) => prev.filter((x) => x.id !== id));
+    const marker = enrichMarkersRef.current.find((m) => m.__suggestionId === id);
+    if (marker) marker.map = null;
+    enrichMarkersRef.current = enrichMarkersRef.current.filter((m) => m.__suggestionId !== id);
+    enrichInfoWindowRef.current?.close();
+  };
+
+  const renderEnrichMarker = async (s: EnrichSuggestion) => {
+    const g = window.google;
+    if (!g || !mapRef.current) return;
+    const meta = ENRICH_CATEGORY_META[s.category];
+
+    const pin = document.createElement("div");
+    pin.style.cssText = `
+      width: 34px; height: 34px; border-radius: 50% 50% 50% 0;
+      background: ${meta.color}; transform: rotate(-45deg);
+      box-shadow: 0 3px 10px rgba(0,0,0,0.3); border: 2px solid white;
+      display: flex; align-items: center; justify-content: center; cursor: pointer;
+    `;
+    const emoji = document.createElement("span");
+    emoji.style.cssText = "transform: rotate(45deg); font-size: 15px;";
+    emoji.textContent = meta.icon;
+    pin.appendChild(emoji);
+
+    const { AdvancedMarkerElement } = (await g.maps.importLibrary("marker")) as any;
+    const marker = new AdvancedMarkerElement({
+      map: mapRef.current,
+      position: s.location,
+      content: pin,
+      title: s.name,
+      zIndex: 50,
+    }) as any;
+    marker.__suggestionId = s.id;
+
+    marker.addListener("click", () => {
+      if (!enrichInfoWindowRef.current) {
+        enrichInfoWindowRef.current = new g.maps.InfoWindow();
+      }
+      const iw = enrichInfoWindowRef.current;
+      const content = document.createElement("div");
+      content.style.cssText = "font-family: inherit; min-width: 220px; max-width: 260px; padding: 2px;";
+      content.innerHTML = `
+        <div style="display:inline-block;font-size:10.5px;font-weight:700;color:${meta.color};background:${meta.color}1a;border-radius:999px;padding:3px 9px;margin-bottom:6px;">${meta.icon} ${meta.label}</div>
+        <div style="font-size:14px;font-weight:700;color:#1e293b;margin-bottom:2px;">${s.name}</div>
+        <div style="font-size:12px;color:#64748b;margin-bottom:8px;">${s.city}</div>
+        <div style="font-size:12.5px;color:#334155;line-height:1.5;margin-bottom:12px;">${s.reason}</div>
+        <div style="display:flex;gap:8px;">
+          <button id="enrich-add-${s.id}" style="flex:1;background:#7c3aed;color:white;border:none;border-radius:8px;padding:8px 10px;font-size:12.5px;font-weight:600;cursor:pointer;">Rotama Ekle</button>
+          <button id="enrich-dismiss-${s.id}" style="background:#f1f5f9;color:#475569;border:none;border-radius:8px;padding:8px 10px;font-size:12.5px;font-weight:600;cursor:pointer;">Geç</button>
+        </div>
+      `;
+      iw.setContent(content);
+      iw.open({ map: mapRef.current, anchor: marker });
+      // Buttons live inside the InfoWindow's own DOM, attach listeners after open.
+      setTimeout(() => {
+        document.getElementById(`enrich-add-${s.id}`)?.addEventListener("click", () => addSuggestionAsStop(s));
+        document.getElementById(`enrich-dismiss-${s.id}`)?.addEventListener("click", () => dismissSuggestion(s.id));
+      }, 0);
+    });
+
+    enrichMarkersRef.current.push(marker);
+  };
+
+  const runEnrichRoute = async () => {
+    const list = stops.map((s) => s.address.trim()).filter(Boolean);
+    if (list.length < 2 || enrichLoading) return;
+    clearEnrichment();
+    setEnrichLoading(true);
+    try {
+      const result = await callEnrichRoute({ data: { stops: list } });
+      const g = window.google;
+      if (!g) throw new Error("map_not_ready");
+      const geocoder = new g.maps.Geocoder();
+
+      const resolved: EnrichSuggestion[] = [];
+      for (const raw of result.suggestions) {
+        try {
+          const geoResult = await new Promise<any>((resolve, reject) => {
+            geocoder.geocode({ address: `${raw.name}, ${raw.city}` }, (results: any, status: string) => {
+              if (status === "OK" && results?.[0]) resolve(results[0]);
+              else reject(new Error(status));
+            });
+          });
+          resolved.push({
+            id: uid(),
+            name: raw.name,
+            city: raw.city,
+            reason: raw.reason,
+            category: raw.category as EnrichCategory,
+            location: {
+              lat: geoResult.geometry.location.lat(),
+              lng: geoResult.geometry.location.lng(),
+            },
+            formattedAddress: geoResult.formatted_address,
+            placeId: geoResult.place_id,
+          });
+        } catch {
+          // Skip suggestions the geocoder can't confidently resolve to a
+          // real place, rather than showing a pin at a wrong/guessed spot.
+        }
+      }
+
+      if (!resolved.length) {
+        setEnrichError("Öneriler haritada bulunamadı. Lütfen tekrar deneyin.");
+        return;
+      }
+      setEnrichSuggestions(resolved);
+      resolved.forEach((s) => renderEnrichMarker(s));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("rate_limited")) {
+        setEnrichError("OpenAI API kota sınırına ulaşıldı. Lütfen biraz bekleyip tekrar deneyin.");
+      } else if (msg.includes("unauthorized") || msg.includes("missing_api_key")) {
+        setEnrichError("OpenAI API anahtarı geçersiz veya tanımlı değil.");
+      } else {
+        setEnrichError("Öneriler alınamadı. Lütfen tekrar deneyin.");
+      }
+    } finally {
+      setEnrichLoading(false);
+    }
+  };
+
 
   const generateAdvice = async () => {
     const list = stops.map((s) => s.address.trim()).filter(Boolean);
@@ -1506,6 +1695,77 @@ function RoutePlanner() {
                 <Plus className="h-4 w-4" /> Durak Ekle
               </button>
             </div>
+
+            {metrics && (
+              <div>
+                <button
+                  type="button"
+                  onClick={runEnrichRoute}
+                  disabled={enrichLoading}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-cyan-200/70 bg-gradient-to-br from-cyan-50 via-white to-white px-4 py-3 text-sm font-semibold text-cyan-800 shadow-sm transition-all duration-200 hover:border-cyan-300 hover:shadow-md active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {enrichLoading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" /> Rota inceleniyor...
+                    </>
+                  ) : (
+                    <>✨ Rotamı Zenginleştir</>
+                  )}
+                </button>
+                <p className="mt-1.5 px-1 text-[11px] text-slate-400">
+                  AI, rotanın üzerindeki manzara noktalarını, yerel lezzetleri ve gizli kalmış yerleri bulup
+                  haritada işaretler.
+                </p>
+
+                {enrichError && (
+                  <div className="mt-2 rounded-lg border border-rose-200 bg-rose-50/80 px-3 py-2 text-[12px] font-medium text-rose-700">
+                    {enrichError}
+                  </div>
+                )}
+
+                {enrichSuggestions.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    {enrichSuggestions.map((s) => {
+                      const meta = ENRICH_CATEGORY_META[s.category];
+                      return (
+                        <div
+                          key={s.id}
+                          className="rounded-xl border border-slate-200/70 bg-white p-3 shadow-sm animate-fade-in"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <span
+                                className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-bold"
+                                style={{ color: meta.color, backgroundColor: `${meta.color}1a` }}
+                              >
+                                {meta.icon} {meta.label}
+                              </span>
+                              <p className="mt-1.5 truncate text-[13.5px] font-bold text-slate-900">{s.name}</p>
+                              <p className="truncate text-[11.5px] text-slate-500">{s.city}</p>
+                              <p className="mt-1 text-[12px] leading-snug text-slate-600">{s.reason}</p>
+                            </div>
+                          </div>
+                          <div className="mt-2.5 flex gap-2">
+                            <button
+                              onClick={() => addSuggestionAsStop(s)}
+                              className="flex-1 rounded-lg bg-violet-600 px-3 py-1.5 text-[12px] font-semibold text-white transition hover:bg-violet-700"
+                            >
+                              Rotama Ekle
+                            </button>
+                            <button
+                              onClick={() => dismissSuggestion(s.id)}
+                              className="rounded-lg bg-slate-100 px-3 py-1.5 text-[12px] font-semibold text-slate-600 transition hover:bg-slate-200"
+                            >
+                              Geç
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
 
             {statusMsg && (
               <div className="rounded-xl border border-amber-200/70 bg-amber-50/80 px-3.5 py-2.5 text-xs font-medium text-amber-800">
