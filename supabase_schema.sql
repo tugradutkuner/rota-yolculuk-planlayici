@@ -52,6 +52,7 @@ create table if not exists public.shared_trips (
   distance_km numeric,
   duration_min integer,
   like_count integer not null default 0,
+  status text not null default 'planned',
   created_at timestamptz not null default now()
 );
 

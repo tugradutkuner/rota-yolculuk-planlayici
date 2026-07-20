@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { generateTravelAdvice, chatWithAdvisor, enrichRoute } from "@/lib/ai-advice.functions";
+import { supabase } from "@/lib/supabase";
 import {
   MapPin,
   Plus,
@@ -325,41 +326,15 @@ interface SavedTrip {
   metrics: { distance: string; duration: string };
 }
 
-const SAVED_TRIPS_KEY = "trip_planner_saved_trips";
-
-function loadSavedTrips(): SavedTrip[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(SAVED_TRIPS_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function persistSavedTrips(trips: SavedTrip[]) {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(SAVED_TRIPS_KEY, JSON.stringify(trips));
-  } catch {
-    /* ignore quota */
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Simulated Auth + Public Shared Feed (localStorage-backed social layer).
 // ---------------------------------------------------------------------------
 interface AppUser {
+  id: string;
   username: string;
   email: string;
   bio: string;
   avatarUrl: string;
-}
-
-interface StoredUser extends AppUser {
-  passwordHash: string;
 }
 
 interface SharedTrip {
@@ -375,9 +350,6 @@ interface SharedTrip {
   status?: "planned" | "completed";
 }
 
-const AUTH_KEY = "trip_planner_current_user";
-const USERS_KEY = "trip_planner_users";
-const FEED_KEY = "public_shared_feed";
 
 const AVATAR_PALETTE = [
   "6366f1,ffffff", "8b5cf6,ffffff", "ec4899,ffffff",
@@ -388,137 +360,6 @@ function avatarFor(username: string): string {
   const palette = AVATAR_PALETTE[hash % AVATAR_PALETTE.length];
   const [bg, fg] = palette.split(",");
   return `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=${bg}&color=${fg}&bold=true&size=128`;
-}
-
-// Lightweight non-cryptographic hash — sufficient for a client-only demo layer.
-function hashPassword(pw: string): string {
-  let h = 5381;
-  for (let i = 0; i < pw.length; i++) h = ((h << 5) + h + pw.charCodeAt(i)) | 0;
-  return `h${(h >>> 0).toString(36)}_${pw.length}`;
-}
-
-function loadCurrentUser(): AppUser | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.localStorage.getItem(AUTH_KEY);
-    return raw ? (JSON.parse(raw) as AppUser) : null;
-  } catch {
-    return null;
-  }
-}
-function persistCurrentUser(u: AppUser | null) {
-  if (typeof window === "undefined") return;
-  try {
-    if (u) window.localStorage.setItem(AUTH_KEY, JSON.stringify(u));
-    else window.localStorage.removeItem(AUTH_KEY);
-  } catch {
-    /* ignore */
-  }
-}
-function loadUsers(): StoredUser[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(USERS_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-function persistUsers(users: StoredUser[]) {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(USERS_KEY, JSON.stringify(users));
-  } catch {
-    /* ignore */
-  }
-}
-
-const SEED_FEED: SharedTrip[] = [
-  {
-    id: "seed-ege",
-    title: "Ege Kıyıları Kaçamağı",
-    description: "İzmir'den başlayıp Çeşme, Alaçatı ve Kuşadası'nda mola vererek Bodrum'a inen 3 günlük rüya rota. Deniz, mezeler ve gün batımları eşliğinde.",
-    publishedAt: new Date(Date.now() - 3 * 86_400_000).toISOString(),
-    publisher: {
-      username: "deniz.gezgin", email: "deniz@example.com",
-      bio: "Kıyı yolları koleksiyoncusu",
-      avatarUrl: avatarFor("deniz.gezgin"),
-    },
-    stops: [
-      { id: uidLocal(), address: "İzmir, Türkiye", datetime: "" },
-      { id: uidLocal(), address: "Çeşme, İzmir, Türkiye", datetime: "" },
-      { id: uidLocal(), address: "Kuşadası, Aydın, Türkiye", datetime: "" },
-      { id: uidLocal(), address: "Bodrum, Muğla, Türkiye", datetime: "" },
-    ],
-    metrics: { distance: "412.6 km", duration: "5 sa 40 dk" },
-    likes: 128,
-  },
-  {
-    id: "seed-alp",
-    title: "Alp Dağları Sürüşü",
-    description: "İnnsbruck'tan Zürih'e, virajlı dağ yollarında panoramik bir Avrupa turu. Fotoğraf molaları kaçırılmamalı!",
-    publishedAt: new Date(Date.now() - 7 * 86_400_000).toISOString(),
-    publisher: {
-      username: "mira.wanders", email: "mira@example.com",
-      bio: "Dağ yolu meraklısı",
-      avatarUrl: avatarFor("mira.wanders"),
-    },
-    stops: [
-      { id: uidLocal(), address: "Innsbruck, Avusturya", datetime: "" },
-      { id: uidLocal(), address: "St. Moritz, İsviçre", datetime: "", socialNote: "Sınırda döviz bozdur — İsviçre Frangı gerekli." },
-      { id: uidLocal(), address: "Andermatt, İsviçre", datetime: "" },
-      { id: uidLocal(), address: "Zürih, İsviçre", datetime: "" },
-    ],
-    metrics: { distance: "486.2 km", duration: "7 sa 15 dk" },
-    likes: 214,
-  },
-  {
-    id: "seed-kapadokya",
-    title: "Kapadokya & İç Anadolu",
-    description: "Ankara'dan başlayıp Tuz Gölü ve Aksaray üzerinden peri bacalarına ulaşan sakin bir hafta sonu rotası.",
-    publishedAt: new Date(Date.now() - 12 * 86_400_000).toISOString(),
-    publisher: {
-      username: "anadolu.notlari", email: "anadolu@example.com",
-      bio: "Sessiz rotalar, uzun sohbetler",
-      avatarUrl: avatarFor("anadolu.notlari"),
-    },
-    stops: [
-      { id: uidLocal(), address: "Ankara, Türkiye", datetime: "" },
-      { id: uidLocal(), address: "Tuz Gölü, Türkiye", datetime: "", socialNote: "Gün batımında fotoğraf için mükemmel — 30 dk mola verin." },
-      { id: uidLocal(), address: "Aksaray, Türkiye", datetime: "" },
-      { id: uidLocal(), address: "Göreme, Nevşehir, Türkiye", datetime: "" },
-    ],
-    metrics: { distance: "329.4 km", duration: "4 sa 20 dk" },
-    likes: 87,
-  },
-];
-
-function uidLocal() {
-  return Math.random().toString(36).slice(2, 9);
-}
-
-function loadFeed(): SharedTrip[] {
-  if (typeof window === "undefined") return SEED_FEED;
-  try {
-    const raw = window.localStorage.getItem(FEED_KEY);
-    if (!raw) {
-      window.localStorage.setItem(FEED_KEY, JSON.stringify(SEED_FEED));
-      return SEED_FEED;
-    }
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length ? parsed : SEED_FEED;
-  } catch {
-    return SEED_FEED;
-  }
-}
-function persistFeed(feed: SharedTrip[]) {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(FEED_KEY, JSON.stringify(feed));
-  } catch {
-    /* ignore */
-  }
 }
 
 const uid = () => Math.random().toString(36).slice(2, 9);
@@ -633,6 +474,7 @@ function RoutePlanner() {
   const [authPassword, setAuthPassword] = useState("");
   const [authUsername, setAuthUsername] = useState("");
   const [authError, setAuthError] = useState<string | null>(null);
+  const [authLoading, setAuthLoading] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [feed, setFeed] = useState<SharedTrip[]>([]);
   const [feedLoading, setFeedLoading] = useState(false);
@@ -698,13 +540,27 @@ function RoutePlanner() {
     };
   }, []);
 
-  useEffect(() => {
-    setSavedTrips(loadSavedTrips());
-  }, []);
+  const dbRowToSavedTrip = (row: any): SavedTrip => ({
+    id: row.id,
+    title: row.title,
+    createdAt: row.created_at,
+    stops: row.stops as Stop[],
+    metrics: {
+      distance: row.distance_km != null ? `${Number(row.distance_km).toFixed(1)} km` : "—",
+      duration: row.duration_min != null ? formatDuration(row.duration_min) : "—",
+    },
+  });
 
-  const commitSavedTrips = (next: SavedTrip[]) => {
-    setSavedTrips(next);
-    persistSavedTrips(next);
+  const refreshSavedTrips = async () => {
+    const { data, error } = await supabase
+      .from("saved_trips")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (error) {
+      console.error("saved_trips fetch error", error);
+      return;
+    }
+    setSavedTrips((data ?? []).map(dbRowToSavedTrip));
   };
 
   const openSaveModal = () => {
@@ -727,23 +583,28 @@ function RoutePlanner() {
     setSaveModalOpen(true);
   };
 
-  const confirmSaveTrip = () => {
+  const confirmSaveTrip = async () => {
     const title = saveTitle.trim();
-    if (!title) {
+    if (!title || !currentUser) {
       toast.error("Lütfen bir gezi başlığı girin.");
       return;
     }
-    const trip: SavedTrip = {
-      id: uid(),
-      title,
-      createdAt: new Date().toISOString(),
-      stops: stops.map((s) => ({ ...s })),
-      metrics: {
-        distance: metrics ? `${metrics.distanceKm.toFixed(1)} km` : "—",
-        duration: metrics ? formatDuration(metrics.durationMin) : "—",
-      },
-    };
-    commitSavedTrips([trip, ...savedTrips]);
+    const { data, error } = await supabase
+      .from("saved_trips")
+      .insert({
+        user_id: currentUser.id,
+        title,
+        stops: stops.map((s) => ({ ...s })),
+        distance_km: metrics ? metrics.distanceKm : null,
+        duration_min: metrics ? metrics.durationMin : null,
+      })
+      .select("*")
+      .single();
+    if (error || !data) {
+      toast.error("Gezi kaydedilemedi. Lütfen tekrar deneyin.");
+      return;
+    }
+    setSavedTrips((prev) => [dbRowToSavedTrip(data), ...prev]);
     setSaveModalOpen(false);
     setSaveTitle("");
     toast.success("Gezi başarıyla kaydedildi!");
@@ -764,21 +625,80 @@ function RoutePlanner() {
     toast.success(`"${trip.title}" yüklendi.`);
   };
 
-  const deleteTrip = (id: string) => {
-    commitSavedTrips(savedTrips.filter((t) => t.id !== id));
+  const deleteTrip = async (id: string) => {
+    const prev = savedTrips;
+    setSavedTrips((cur) => cur.filter((t) => t.id !== id));
     setConfirmDeleteId(null);
+    const { error } = await supabase.from("saved_trips").delete().eq("id", id);
+    if (error) {
+      setSavedTrips(prev);
+      toast.error("Gezi silinemedi. Lütfen tekrar deneyin.");
+      return;
+    }
     toast.success("Gezi silindi.");
   };
 
   // ── Auth handlers ────────────────────────────────────────────────────
+  const fetchProfileUser = async (userId: string, email: string): Promise<AppUser | null> => {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("username, avatar_url, bio")
+      .eq("id", userId)
+      .maybeSingle();
+    if (error || !data) return null;
+    return {
+      id: userId,
+      email,
+      username: data.username,
+      avatarUrl: data.avatar_url || avatarFor(data.username),
+      bio: data.bio || "",
+    };
+  };
+
   useEffect(() => {
-    setCurrentUser(loadCurrentUser());
-    setFeed(loadFeed());
+    let active = true;
+
+    supabase.auth.getSession().then(async ({ data }) => {
+      const session = data.session;
+      if (session?.user && active) {
+        const u = await fetchProfileUser(session.user.id, session.user.email ?? "");
+        if (active) setCurrentUser(u);
+      }
+    });
+
+    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!active) return;
+      if (session?.user) {
+        const u = await fetchProfileUser(session.user.id, session.user.email ?? "");
+        if (active) setCurrentUser(u);
+      } else {
+        setCurrentUser(null);
+      }
+    });
+
     // Show a brief skeleton on initial mount since Discover is the homepage
     setFeedLoading(true);
     const t = setTimeout(() => setFeedLoading(false), 550);
-    return () => clearTimeout(t);
+    return () => {
+      active = false;
+      sub.subscription.unsubscribe();
+      clearTimeout(t);
+    };
   }, []);
+
+  useEffect(() => {
+    refreshFeed();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id]);
+
+  useEffect(() => {
+    if (currentUser) {
+      refreshSavedTrips();
+    } else {
+      setSavedTrips([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id]);
 
   const openLogin = (mode: "signin" | "signup" = "signin") => {
     setAuthMode(mode);
@@ -788,7 +708,7 @@ function RoutePlanner() {
     setAuthError(null);
     setLoginOpen(true);
   };
-  const confirmAuth = () => {
+  const confirmAuth = async () => {
     const email = authEmail.trim().toLowerCase();
     const password = authPassword;
     if (!/^\S+@\S+\.\S+$/.test(email)) {
@@ -799,60 +719,122 @@ function RoutePlanner() {
       setAuthError("Şifre en az 6 karakter olmalıdır.");
       return;
     }
-    const users = loadUsers();
-    if (authMode === "signup") {
-      const uname = authUsername.trim().replace(/\s+/g, ".").toLowerCase();
-      if (uname.length < 3) {
-        setAuthError("Kullanıcı adı en az 3 karakter olmalıdır.");
+    setAuthLoading(true);
+    setAuthError(null);
+    try {
+      if (authMode === "signup") {
+        const uname = authUsername.trim().replace(/\s+/g, ".").toLowerCase();
+        if (uname.length < 3) {
+          setAuthError("Kullanıcı adı en az 3 karakter olmalıdır.");
+          return;
+        }
+        const { data: existing } = await supabase
+          .from("profiles")
+          .select("username")
+          .eq("username", uname)
+          .maybeSingle();
+        if (existing) {
+          setAuthError("Bu kullanıcı adı zaten alınmış.");
+          return;
+        }
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { data: { username: uname, avatar_url: avatarFor(uname) } },
+        });
+        if (error) {
+          setAuthError(
+            error.message.toLowerCase().includes("already registered")
+              ? "Bu e-posta zaten kayıtlı. Giriş yapmayı deneyin."
+              : error.message,
+          );
+          return;
+        }
+        if (data.user) {
+          const u = await fetchProfileUser(data.user.id, email);
+          setCurrentUser(u);
+        }
+        setLoginOpen(false);
+        toast.success(`Hoş geldin, @${uname}!`);
         return;
       }
-      if (users.some((u) => u.email === email)) {
-        setAuthError("Bu e-posta zaten kayıtlı. Giriş yapmayı deneyin.");
+      // Sign in
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        setAuthError("E-posta veya şifre hatalı.");
         return;
       }
-      if (users.some((u) => u.username === uname)) {
-        setAuthError("Bu kullanıcı adı zaten alınmış.");
-        return;
+      if (data.user) {
+        const u = await fetchProfileUser(data.user.id, email);
+        setCurrentUser(u);
+        setLoginOpen(false);
+        toast.success(`Tekrar hoş geldin, @${u?.username ?? ""}!`);
       }
-      const stored: StoredUser = {
-        username: uname,
-        email,
-        bio: "Rotalarını topluluğa açan gezgin.",
-        avatarUrl: avatarFor(uname),
-        passwordHash: hashPassword(password),
-      };
-      persistUsers([stored, ...users]);
-      const { passwordHash, ...pub } = stored;
-      setCurrentUser(pub);
-      persistCurrentUser(pub);
-      setLoginOpen(false);
-      toast.success(`Hoş geldin, @${pub.username}!`);
-      return;
+    } finally {
+      setAuthLoading(false);
     }
-    // Sign in
-    const found = users.find((u) => u.email === email);
-    if (!found || found.passwordHash !== hashPassword(password)) {
-      setAuthError("E-posta veya şifre hatalı.");
-      return;
-    }
-    const { passwordHash, ...pub } = found;
-    setCurrentUser(pub);
-    persistCurrentUser(pub);
-    setLoginOpen(false);
-    toast.success(`Tekrar hoş geldin, @${pub.username}!`);
   };
-  const logout = () => {
+  const logout = async () => {
+    await supabase.auth.signOut();
     setActiveTab("new");
     setCurrentUser(null);
-    persistCurrentUser(null);
     setUserMenuOpen(false);
     toast.success("Çıkış yapıldı.");
   };
 
   // ── Feed handlers ────────────────────────────────────────────────────
-  const commitFeed = (next: SharedTrip[]) => {
-    setFeed(next);
-    persistFeed(next);
+  const parseKm = (s: string) => {
+    const m = s.match(/([\d.,]+)\s*km/i);
+    return m ? parseFloat(m[1].replace(",", ".")) : null;
+  };
+  const parseDurationMinFromLabel = (s: string) => {
+    const h = s.match(/(\d+)\s*sa/);
+    const m = s.match(/(\d+)\s*dk/);
+    if (!h && !m) return null;
+    return (h ? parseInt(h[1], 10) * 60 : 0) + (m ? parseInt(m[1], 10) : 0);
+  };
+
+  const dbRowToSharedTrip = (row: any, likedSet: Set<string>): SharedTrip => ({
+    id: row.id,
+    title: row.title,
+    description: row.description ?? "",
+    publishedAt: row.created_at,
+    publisher: {
+      id: row.user_id,
+      username: row.profiles?.username ?? "gezgin",
+      email: "",
+      bio: row.profiles?.bio ?? "",
+      avatarUrl: row.profiles?.avatar_url || avatarFor(row.profiles?.username ?? "gezgin"),
+    },
+    stops: row.stops as Stop[],
+    metrics: {
+      distance: row.distance_km != null ? `${Number(row.distance_km).toFixed(1)} km` : "—",
+      duration: row.duration_min != null ? formatDuration(row.duration_min) : "—",
+    },
+    likes: row.like_count ?? 0,
+    likedByMe: likedSet.has(row.id),
+    status: row.status ?? "planned",
+  });
+
+  const refreshFeed = async () => {
+    const { data, error } = await supabase
+      .from("shared_trips")
+      .select("*, profiles(username, avatar_url, bio)")
+      .order("created_at", { ascending: false })
+      .limit(50);
+    if (error) {
+      console.error("shared_trips fetch error", error);
+      return;
+    }
+    let likedSet = new Set<string>();
+    if (currentUser) {
+      const { data: likedRows } = await supabase
+        .from("trip_likes")
+        .select("trip_id")
+        .eq("user_id", currentUser.id);
+      likedSet = new Set((likedRows ?? []).map((r: any) => r.trip_id));
+    }
+    setFeed((data ?? []).map((row) => dbRowToSharedTrip(row, likedSet)));
   };
 
   const openShareModal = (trip: SavedTrip) => {
@@ -866,37 +848,62 @@ function RoutePlanner() {
     setShareStatus("planned");
     setShareStops(trip.stops.map((s) => ({ ...s, media: s.media ? [...s.media] : [] })));
   };
-  const confirmShareTrip = () => {
+  const confirmShareTrip = async () => {
     if (!shareTrip || !currentUser) return;
     const finalStops = (shareStatus === "completed" ? shareStops : shareTrip.stops).map((s) => ({
       ...s,
       media: shareStatus === "completed" ? (s.media ?? []).filter((u) => u.trim().length > 0) : undefined,
     }));
-    const shared: SharedTrip = {
-      id: uid(),
-      title: shareTrip.title,
-      description: shareDesc.trim() || "Yeni bir rota paylaştım — beğenirseniz kopyalayın!",
-      publishedAt: new Date().toISOString(),
-      publisher: currentUser,
-      stops: finalStops,
-      metrics: shareTrip.metrics,
-      likes: 0,
-      status: shareStatus,
-    };
-    commitFeed([shared, ...feed]);
+    const { data, error } = await supabase
+      .from("shared_trips")
+      .insert({
+        user_id: currentUser.id,
+        title: shareTrip.title,
+        description: shareDesc.trim() || "Yeni bir rota paylaştım — beğenirseniz kopyalayın!",
+        stops: finalStops,
+        distance_km: parseKm(shareTrip.metrics.distance),
+        duration_min: parseDurationMinFromLabel(shareTrip.metrics.duration),
+        status: shareStatus,
+      })
+      .select("*, profiles(username, avatar_url, bio)")
+      .single();
+    if (error || !data) {
+      toast.error("Paylaşılamadı. Lütfen tekrar deneyin.");
+      return;
+    }
+    setFeed((prev) => [dbRowToSharedTrip(data, new Set()), ...prev]);
     setShareTrip(null);
     setShareDesc("");
     toast.success(shareStatus === "completed" ? "Tamamlanan gezin toplulukta paylaşıldı!" : "Gezi toplulukta paylaşıldı!");
   };
 
-  const toggleLike = (id: string) => {
-    commitFeed(
-      feed.map((t) =>
-        t.id === id
-          ? { ...t, likedByMe: !t.likedByMe, likes: t.likes + (t.likedByMe ? -1 : 1) }
-          : t,
-      ),
+  const toggleLike = async (id: string) => {
+    if (!currentUser) {
+      toast.error("Beğenmek için giriş yapmalısın.");
+      openLogin("signin");
+      return;
+    }
+    const trip = feed.find((t) => t.id === id);
+    if (!trip) return;
+    const wasLiked = !!trip.likedByMe;
+    setFeed((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, likedByMe: !wasLiked, likes: t.likes + (wasLiked ? -1 : 1) } : t)),
     );
+    if (wasLiked) {
+      const { error } = await supabase
+        .from("trip_likes")
+        .delete()
+        .eq("trip_id", id)
+        .eq("user_id", currentUser.id);
+      if (error) {
+        setFeed((prev) => prev.map((t) => (t.id === id ? { ...t, likedByMe: true, likes: t.likes + 1 } : t)));
+      }
+    } else {
+      const { error } = await supabase.from("trip_likes").insert({ trip_id: id, user_id: currentUser.id });
+      if (error) {
+        setFeed((prev) => prev.map((t) => (t.id === id ? { ...t, likedByMe: false, likes: t.likes - 1 } : t)));
+      }
+    }
   };
 
   const cloneSharedTrip = (trip: SharedTrip) => {
@@ -917,7 +924,7 @@ function RoutePlanner() {
   const switchToDiscover = () => {
     setActiveTab("discover");
     setFeedLoading(true);
-    setTimeout(() => setFeedLoading(false), 550);
+    refreshFeed().finally(() => setFeedLoading(false));
   };
 
   const startNewRoute = () => {
@@ -2096,9 +2103,15 @@ function RoutePlanner() {
               </button>
               <button
                 onClick={confirmAuth}
-                className="flex items-center gap-2 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-500/30 transition-all duration-200 hover:shadow-xl hover:shadow-violet-500/40 active:scale-[0.97] transform-gpu"
+                disabled={authLoading}
+                className="flex items-center gap-2 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-500/30 transition-all duration-200 hover:shadow-xl hover:shadow-violet-500/40 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-60 transform-gpu"
               >
-                <LogIn className="h-4 w-4" /> {authMode === "signin" ? "Giriş Yap" : "Kayıt Ol"}
+                {authLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <LogIn className="h-4 w-4" />
+                )}
+                {authMode === "signin" ? "Giriş Yap" : "Kayıt Ol"}
               </button>
             </div>
           </div>
