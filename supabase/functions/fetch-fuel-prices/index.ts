@@ -92,9 +92,12 @@ Deno.serve(async () => {
 
       const parsed = parsePricesFromHtml(html);
       if (!parsed) {
-        throw new Error(
-          `Fiyat metni bulunamadı. Sayfa uzunluğu: ${html.length}, ilk 300 karakter: ${html.slice(0, 300).replace(/\s+/g, " ")}`,
-        );
+        const idx = html.toLowerCase().indexOf("e95");
+        const snippet =
+          idx >= 0
+            ? html.slice(Math.max(0, idx - 200), idx + 400).replace(/\s+/g, " ")
+            : `("e95" hiç geçmiyor, sayfa uzunluğu: ${html.length})`;
+        throw new Error(`Fiyat metni bulunamadı. e95 civarı: ${snippet}`);
       }
 
       const gasolineUsd = parsed.e95 * parsed.usdRate;
