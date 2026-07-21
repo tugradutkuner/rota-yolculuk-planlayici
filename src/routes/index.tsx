@@ -43,6 +43,7 @@ import {
   Pin,
   Flag,
   Send,
+  Fuel,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -457,6 +458,11 @@ function RoutePlanner() {
   const callChatAdvisor = useServerFn(chatWithAdvisor);
   const callEnrichRoute = useServerFn(enrichRoute);
   const [enrichSuggestions, setEnrichSuggestions] = useState<EnrichSuggestion[]>([]);
+  const [fuelPrices, setFuelPrices] = useState<
+    Record<string, { gasoline: number | null; diesel: number | null; source: string; updatedAt: string }>
+  >({});
+  const [fuelType, setFuelType] = useState<"gasoline" | "diesel">("gasoline");
+  const [fuelConsumption, setFuelConsumption] = useState(7); // L/100km
   const [enrichLoading, setEnrichLoading] = useState(false);
   const [enrichError, setEnrichError] = useState<string | null>(null);
   const enrichMarkersRef = useRef<any[]>([]);
@@ -656,6 +662,26 @@ function RoutePlanner() {
   };
 
   useEffect(() => {
+    supabase
+      .from("fuel_prices")
+      .select("*")
+      .then(({ data, error }) => {
+        if (error || !data) return;
+        const map: typeof fuelPrices = {};
+        for (const row of data) {
+          map[row.country_code] = {
+            gasoline: row.gasoline_usd_per_liter,
+            diesel: row.diesel_usd_per_liter,
+            source: row.source,
+            updatedAt: row.updated_at,
+          };
+        }
+        setFuelPrices(map);
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
     let active = true;
 
     supabase.auth.getSession().then(async ({ data }) => {
@@ -750,21 +776,32 @@ function RoutePlanner() {
           );
           return;
         }
-        if (data.user) {
+        if (data.session && data.user) {
+          // Real session already active (email confirmation disabled) — log in immediately.
           const u = await fetchProfileUser(data.user.id, email);
           setCurrentUser(u);
+          setLoginOpen(false);
+          toast.success(`Hoş geldin, @${uname}!`);
+        } else {
+          // Project requires email confirmation: no session yet, so any DB write
+          // would silently fail RLS if we pretended the user was logged in here.
+          setAuthError(null);
+          toast.success("Kayıt alındı! Devam etmek için e-postana gönderilen onay linkine tıkla.");
+          setLoginOpen(false);
         }
-        setLoginOpen(false);
-        toast.success(`Hoş geldin, @${uname}!`);
         return;
       }
       // Sign in
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
-        setAuthError("E-posta veya şifre hatalı.");
+        setAuthError(
+          error.message.toLowerCase().includes("email not confirmed")
+            ? "E-postanı henüz onaylamamışsın. Gelen kutunu kontrol et."
+            : "E-posta veya şifre hatalı.",
+        );
         return;
       }
-      if (data.user) {
+      if (data.session && data.user) {
         const u = await fetchProfileUser(data.user.id, email);
         setCurrentUser(u);
         setLoginOpen(false);
@@ -1457,6 +1494,25 @@ function RoutePlanner() {
 
 
 
+  const fuelEstimate = (() => {
+    if (!metrics) return null;
+    const countryCodes = new Set<string>();
+    for (const s of stops) {
+      const country = extractCountry(s.address);
+      if (!country) continue;
+      const code = COUNTRY_NAME_TO_CODE[country.toLowerCase()];
+      if (code) countryCodes.add(code);
+    }
+    const prices = Array.from(countryCodes)
+      .map((code) => fuelPrices[code]?.[fuelType])
+      .filter((p): p is number => typeof p === "number");
+    if (!prices.length) return null;
+    const avgPrice = prices.reduce((a, b) => a + b, 0) / prices.length;
+    const liters = (metrics.distanceKm * fuelConsumption) / 100;
+    const totalUsd = liters * avgPrice;
+    return { liters, avgPrice, totalUsd, countryCount: countryCodes.size, matchedCount: prices.length };
+  })();
+
   return (
     <div className="relative h-screen w-screen overflow-hidden text-slate-900">
       <div ref={mapDivRef} className="absolute inset-0 h-full w-full" />
@@ -1674,6 +1730,72 @@ function RoutePlanner() {
                 accent="indigo"
               />
             </div>
+
+            {metrics && (
+              <div className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-sm">
+                <div className="mb-3 flex items-center justify-between">
+                  <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500">
+                    <Fuel className="h-3.5 w-3.5" /> Tahmini Yakıt Maliyeti
+                  </p>
+                  <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5">
+                    <button
+                      onClick={() => setFuelType("gasoline")}
+                      className={`rounded-md px-2 py-1 text-[11px] font-semibold transition ${
+                        fuelType === "gasoline" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
+                      }`}
+                    >
+                      Benzin
+                    </button>
+                    <button
+                      onClick={() => setFuelType("diesel")}
+                      className={`rounded-md px-2 py-1 text-[11px] font-semibold transition ${
+                        fuelType === "diesel" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
+                      }`}
+                    >
+                      Mazot
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mb-3 flex items-center gap-2 text-[12px] text-slate-500">
+                  <span>Ort. tüketim:</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={30}
+                    step={0.5}
+                    value={fuelConsumption}
+                    onChange={(e) => setFuelConsumption(Math.max(1, Number(e.target.value) || 7))}
+                    className="w-16 rounded-md border border-slate-200 px-1.5 py-0.5 text-center text-[12px] font-semibold text-slate-800 focus:border-violet-400 focus:outline-none"
+                  />
+                  <span>L / 100km</span>
+                </div>
+
+                {fuelEstimate ? (
+                  <>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-2xl font-bold text-slate-900">
+                        ${fuelEstimate.totalUsd.toFixed(0)}
+                      </span>
+                      <span className="text-[12px] text-slate-400">
+                        (~{fuelEstimate.liters.toFixed(0)} litre)
+                      </span>
+                    </div>
+                    <p className="mt-1.5 text-[11px] leading-snug text-slate-400">
+                      Ortalama ${fuelEstimate.avgPrice.toFixed(2)}/L
+                      {fuelEstimate.matchedCount < fuelEstimate.countryCount
+                        ? ` · rotandaki ${fuelEstimate.countryCount} ülkeden ${fuelEstimate.matchedCount}'i için veri var`
+                        : ""}{" "}
+                      · yaklaşık değerdir, gerçek fiyatlar değişebilir
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-[12px] text-slate-400">
+                    Bu rotanın geçtiği ülkeler için henüz yakıt fiyat verisi yok.
+                  </p>
+                )}
+              </div>
+            )}
 
             <div>
               <div className="mb-3 flex items-center justify-between">
@@ -2433,6 +2555,19 @@ function extractCountry(address: string): string | null {
   const parts = address.split(",").map((p) => p.trim()).filter(Boolean);
   return parts.length ? parts[parts.length - 1] : null;
 }
+
+// Google Geocoding (language=tr) döner Türkçe ülke adlarını fuel_prices
+// tablosundaki ISO 3166-1 alpha-2 koduna çeviriyor.
+const COUNTRY_NAME_TO_CODE: Record<string, string> = {
+  "türkiye": "TR", "almanya": "DE", "fransa": "FR", "polonya": "PL",
+  "çekya": "CZ", "çek cumhuriyeti": "CZ", "lüksemburg": "LU", "avusturya": "AT",
+  "belçika": "BE", "hollanda": "NL", "danimarka": "DK", "bulgaristan": "BG",
+  "hırvatistan": "HR", "kıbrıs": "CY", "estonya": "EE", "finlandiya": "FI",
+  "yunanistan": "GR", "macaristan": "HU", "i̇rlanda": "IE", "irlanda": "IE",
+  "i̇talya": "IT", "italya": "IT", "letonya": "LV", "litvanya": "LT",
+  "malta": "MT", "portekiz": "PT", "romanya": "RO", "slovakya": "SK",
+  "slovenya": "SI", "i̇spanya": "ES", "ispanya": "ES", "i̇sveç": "SE", "isveç": "SE",
+};
 
 interface RouteBadge {
   label: string;
