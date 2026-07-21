@@ -80,13 +80,22 @@ Deno.serve(async () => {
   for (const [slug, [code, trName]] of Object.entries(EU_COUNTRIES)) {
     try {
       const res = await fetch(`https://www.fuel-prices.eu/${slug}/`, {
-        headers: { "User-Agent": "RotaPlanlayici-FuelPriceBot/1.0 (+https://rota-yolculuk-planlayici.lovable.app)" },
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          "Accept-Language": "en-US,en;q=0.9",
+        },
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const html = await res.text();
 
       const parsed = parsePricesFromHtml(html);
-      if (!parsed) throw new Error("Fiyat metni sayfada bulunamadı (sayfa yapısı değişmiş olabilir)");
+      if (!parsed) {
+        throw new Error(
+          `Fiyat metni bulunamadı. Sayfa uzunluğu: ${html.length}, ilk 300 karakter: ${html.slice(0, 300).replace(/\s+/g, " ")}`,
+        );
+      }
 
       const gasolineUsd = parsed.e95 * parsed.usdRate;
       const dieselUsd = parsed.diesel * parsed.usdRate;
