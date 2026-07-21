@@ -49,24 +49,25 @@ const EU_COUNTRIES: Record<string, [string, string]> = {
   Sweden: ["SE", "İsveç"],
 };
 
-// Parses the page's visible body text, e.g.:
-//   "Euro 95 petrol: €2.101 per liter (€7.95 per US gallon). Diesel: €2.015
-//    per liter (€7.63 per US gallon). Updated: 13 Jul 2026."
-//   "LATEST ECB RATE €1 = $1.1426 LIVE"
-// This targets literal rendered copy (verified by hand for several
-// countries) rather than guessing the exact <meta> attribute structure,
-// which turned out not to match on the first deploy.
+// Confirmed exact real markup (verified against actual fetched HTML, not
+// guessed): <meta name="data-e95-price" content="1.762">
+function extractMeta(html: string, key: string): string | null {
+  const re = new RegExp(`<meta name="data-${key}" content="([^"]*)"`, "i");
+  const m = html.match(re);
+  return m ? m[1] : null;
+}
+
 function parsePricesFromHtml(html: string): { e95: number; diesel: number; usdRate: number; date: string | null } | null {
-  const priceLine = html.match(
-    /Euro 95 petrol:\s*€\s*([\d.,]+)\s*per liter[^.]*\.\s*Diesel:\s*€\s*([\d.,]+)\s*per liter[^.]*\.\s*Updated:\s*([^.<\n]+)/i,
-  );
-  const rateLine = html.match(/€\s*1\s*=\s*\$\s*([\d.,]+)/i);
-  if (!priceLine || !rateLine) return null;
+  const e95 = extractMeta(html, "e95-price");
+  const diesel = extractMeta(html, "diesel-price");
+  const usdRate = extractMeta(html, "usd-rate");
+  const date = extractMeta(html, "latest-date");
+  if (!e95 || !diesel || !usdRate) return null;
   return {
-    e95: parseFloat(priceLine[1].replace(",", ".")),
-    diesel: parseFloat(priceLine[2].replace(",", ".")),
-    usdRate: parseFloat(rateLine[1].replace(",", ".")),
-    date: priceLine[3] ? priceLine[3].trim() : null,
+    e95: parseFloat(e95),
+    diesel: parseFloat(diesel),
+    usdRate: parseFloat(usdRate),
+    date,
   };
 }
 
@@ -91,14 +92,7 @@ Deno.serve(async () => {
       const html = await res.text();
 
       const parsed = parsePricesFromHtml(html);
-      if (!parsed) {
-        const idx = html.toLowerCase().indexOf("e95");
-        const snippet =
-          idx >= 0
-            ? html.slice(Math.max(0, idx - 200), idx + 400).replace(/\s+/g, " ")
-            : `("e95" hiç geçmiyor, sayfa uzunluğu: ${html.length})`;
-        throw new Error(`Fiyat metni bulunamadı. e95 civarı: ${snippet}`);
-      }
+      if (!parsed) throw new Error("Beklenen meta etiketleri bulunamadı");
 
       const gasolineUsd = parsed.e95 * parsed.usdRate;
       const dieselUsd = parsed.diesel * parsed.usdRate;
