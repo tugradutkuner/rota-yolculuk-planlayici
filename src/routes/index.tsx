@@ -457,6 +457,7 @@ function RoutePlanner() {
   ]);
   const [metrics, setMetrics] = useState<Metrics>(null);
   const [legDurations, setLegDurations] = useState<number[]>([]); // seconds per leg
+  const [legDistances, setLegDistances] = useState<number[]>([]); // meters per leg
   const [calculating, setCalculating] = useState(false);
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
@@ -659,6 +660,7 @@ function RoutePlanner() {
     setStops(trip.stops.map((s) => ({ ...s, id: s.id || uid() })));
     setMetrics(null);
     setLegDurations([]);
+    setLegDistances([]);
     setStatusMsg("Kayıtlı gezi yüklendi. Güncel rota için 'Rotayı Hesapla' butonunu kullanın.");
     setAiText(null);
     setAiError(null);
@@ -1081,6 +1083,7 @@ function RoutePlanner() {
     setStops(trip.stops.map((s) => ({ ...s, id: uid() })));
     setMetrics(null);
     setLegDurations([]);
+    setLegDistances([]);
     setAiText(null);
     setAiError(null);
     setChatMessages([]);
@@ -1105,6 +1108,7 @@ function RoutePlanner() {
     ]);
     setMetrics(null);
     setLegDurations([]);
+    setLegDistances([]);
     setStatusMsg(null);
     setAiText(null);
     setAiError(null);
@@ -1443,13 +1447,17 @@ function RoutePlanner() {
     let dist = 0;
     let dur = 0;
     const legs: number[] = [];
+    const legDists: number[] = [];
     for (const leg of result.routes[idx].legs) {
-      dist += leg.distance?.value ?? 0;
+      const legDistM = leg.distance?.value ?? 0;
+      dist += legDistM;
+      legDists.push(legDistM);
       const d = leg.duration_in_traffic?.value ?? leg.duration?.value ?? 0;
       dur += d;
       legs.push(d);
     }
     setLegDurations(legs);
+    setLegDistances(legDists);
     setMetrics({ distanceKm: dist / 1000, durationMin: Math.round(dur / 60) });
   };
 
@@ -1835,21 +1843,46 @@ function RoutePlanner() {
 
   const fuelEstimate = (() => {
     if (!metrics) return null;
-    const countryCodes = new Set<string>();
-    for (const s of stops) {
-      const country = extractCountry(s.address);
-      if (!country) continue;
-      const code = COUNTRY_NAME_TO_CODE[country.toLowerCase()];
-      if (code) countryCodes.add(code);
+    const filled = stops.filter((s) => s.address.trim().length > 0);
+    if (filled.length < 2 || !legDistances.length) return null;
+
+    const perCountry = new Map<string, { label: string; km: number }>();
+    for (let i = 0; i < legDistances.length && i < filled.length - 1; i++) {
+      const destStop = filled[i + 1];
+      const countryLabel = extractCountry(destStop.address);
+      const code = countryLabel ? COUNTRY_NAME_TO_CODE[countryLabel.toLowerCase()] : undefined;
+      const key = code ?? countryLabel ?? "unknown";
+      const km = legDistances[i] / 1000;
+      const entry = perCountry.get(key) ?? { label: countryLabel ?? "Bilinmeyen bölge", km: 0 };
+      entry.km += km;
+      perCountry.set(key, entry);
     }
-    const prices = Array.from(countryCodes)
-      .map((code) => fuelPrices[code]?.[fuelType])
-      .filter((p): p is number => typeof p === "number");
-    if (!prices.length) return null;
-    const avgPrice = prices.reduce((a, b) => a + b, 0) / prices.length;
-    const liters = (metrics.distanceKm * fuelConsumption) / 100;
-    const totalUsd = liters * avgPrice;
-    return { liters, avgPrice, totalUsd, countryCount: countryCodes.size, matchedCount: prices.length };
+
+    const breakdown: { code: string; label: string; km: number; price: number | null; cost: number | null }[] = [];
+    let totalCost = 0;
+    let totalLiters = 0;
+    let anyMissing = false;
+    for (const [code, { label, km }] of perCountry) {
+      const price = fuelPrices[code]?.[fuelType] ?? null;
+      const liters = (km * fuelConsumption) / 100;
+      const cost = price != null ? liters * price : null;
+      if (cost != null) {
+        totalCost += cost;
+        totalLiters += liters;
+      } else {
+        anyMissing = true;
+      }
+      breakdown.push({ code, label, km, price, cost });
+    }
+    if (!breakdown.some((b) => b.cost != null)) return null;
+
+    return {
+      breakdown: breakdown.sort((a, b) => b.km - a.km),
+      totalCost,
+      totalLiters,
+      avgPrice: totalLiters > 0 ? totalCost / totalLiters : null,
+      anyMissing,
+    };
   })();
 
   return (
@@ -2159,21 +2192,33 @@ function RoutePlanner() {
 
                 {fuelEstimate ? (
                   <>
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-2xl font-bold text-slate-900">
-                        ${fuelEstimate.totalUsd.toFixed(0)}
-                      </span>
-                      <span className="text-[12px] text-slate-400">
-                        (~{fuelEstimate.liters.toFixed(0)} litre)
-                      </span>
+                    <div className="mb-2.5 space-y-1">
+                      {fuelEstimate.breakdown.map((b) => (
+                        <div key={b.code} className="flex items-center justify-between text-[12px]">
+                          <span className="text-slate-500">
+                            {b.label} · {b.km.toFixed(0)} km
+                          </span>
+                          <span className={`font-semibold ${b.cost != null ? "text-slate-700" : "text-slate-300"}`}>
+                            {b.cost != null ? `$${b.cost.toFixed(0)}` : "veri yok"}
+                          </span>
+                        </div>
+                      ))}
                     </div>
-                    <p className="mt-1.5 text-[11px] leading-snug text-slate-400">
-                      Ortalama ${fuelEstimate.avgPrice.toFixed(2)}/L
-                      {fuelEstimate.matchedCount < fuelEstimate.countryCount
-                        ? ` · rotandaki ${fuelEstimate.countryCount} ülkeden ${fuelEstimate.matchedCount}'i için veri var`
-                        : ""}{" "}
-                      · yaklaşık değerdir, gerçek fiyatlar değişebilir
-                    </p>
+                    <div className="border-t border-slate-100 pt-2.5">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-2xl font-bold text-slate-900">
+                          ${fuelEstimate.totalCost.toFixed(0)}
+                        </span>
+                        <span className="text-[12px] text-slate-400">
+                          (~{fuelEstimate.totalLiters.toFixed(0)} litre)
+                        </span>
+                      </div>
+                      <p className="mt-1.5 text-[11px] leading-snug text-slate-400">
+                        Ortalama ${fuelEstimate.avgPrice?.toFixed(2)}/L
+                        {fuelEstimate.anyMissing ? " · bazı bölgeler için henüz veri yok, toplama dahil edilmedi" : ""}{" "}
+                        · yaklaşık değerdir, gerçek fiyatlar değişebilir
+                      </p>
+                    </div>
                   </>
                 ) : (
                   <p className="text-[12px] text-slate-400">
