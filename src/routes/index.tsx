@@ -46,6 +46,8 @@ import {
   Fuel,
   Star,
   MessageCircle,
+  Users2,
+  Link2,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -479,6 +481,11 @@ function RoutePlanner() {
   >({});
   const [fuelType, setFuelType] = useState<"gasoline" | "diesel">("gasoline");
   const [fuelConsumption, setFuelConsumption] = useState(7); // L/100km
+  const [collabRoomId, setCollabRoomId] = useState<string | null>(null);
+  const [collabModalOpen, setCollabModalOpen] = useState(false);
+  const [journalTrip, setJournalTrip] = useState<SharedTrip | null>(null);
+  const isApplyingRemoteRef = useRef(false);
+  const collabChannelRef = useRef<any>(null);
   const [showWelcome, setShowWelcome] = useState(() => {
     if (typeof window === "undefined") return false;
     try {
@@ -1107,6 +1114,104 @@ function RoutePlanner() {
     clearMapRoute();
     setActiveTab("new");
   };
+
+  // ── Gerçek zamanlı ortak rota planlama ─────────────────────────────
+  const generateRoomId = () =>
+    Math.random().toString(36).slice(2, 6) + Math.random().toString(36).slice(2, 6);
+
+  const subscribeToRoom = (roomId: string) => {
+    if (collabChannelRef.current) supabase.removeChannel(collabChannelRef.current);
+    const channel = supabase
+      .channel(`collab-room-${roomId}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "collab_rooms", filter: `id=eq.${roomId}` },
+        (payload: any) => {
+          isApplyingRemoteRef.current = true;
+          setStops(payload.new.stops as Stop[]);
+        },
+      )
+      .subscribe();
+    collabChannelRef.current = channel;
+  };
+
+  const startCollabSession = async () => {
+    if (!currentUser) {
+      toast.error("Ortak oturum başlatmak için giriş yapmalısın.");
+      openLogin("signin");
+      return;
+    }
+    const filled = stops.filter((s) => s.address.trim().length > 0);
+    if (filled.length < 1) {
+      toast.error("Önce en az bir durak girmelisin.");
+      return;
+    }
+    const roomId = generateRoomId();
+    const { error } = await supabase.from("collab_rooms").insert({ id: roomId, owner_id: currentUser.id, stops });
+    if (error) {
+      toast.error("Ortak oturum başlatılamadı. Lütfen tekrar deneyin.");
+      return;
+    }
+    setCollabRoomId(roomId);
+    subscribeToRoom(roomId);
+    const url = new URL(window.location.href);
+    url.searchParams.set("room", roomId);
+    window.history.replaceState({}, "", url.toString());
+    setCollabModalOpen(true);
+  };
+
+  const joinCollabSession = async (roomId: string) => {
+    const { data, error } = await supabase.from("collab_rooms").select("stops").eq("id", roomId).maybeSingle();
+    if (error || !data) {
+      toast.error("Ortak oturum bulunamadı ya da linkin süresi dolmuş.");
+      return;
+    }
+    isApplyingRemoteRef.current = true;
+    setStops((data.stops as Stop[]).map((s) => ({ ...s, id: s.id || uid() })));
+    setCollabRoomId(roomId);
+    subscribeToRoom(roomId);
+    setActiveTab("new");
+    toast.success("Ortak oturuma katıldın! Yaptığın değişiklikler anlık paylaşılıyor.");
+  };
+
+  const leaveCollabSession = () => {
+    if (collabChannelRef.current) {
+      supabase.removeChannel(collabChannelRef.current);
+      collabChannelRef.current = null;
+    }
+    setCollabRoomId(null);
+    const url = new URL(window.location.href);
+    url.searchParams.delete("room");
+    window.history.replaceState({}, "", url.toString());
+    toast("Ortak oturumdan çıkıldı.");
+  };
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const room = params.get("room");
+    if (room) joinCollabSession(room);
+    return () => {
+      if (collabChannelRef.current) supabase.removeChannel(collabChannelRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!collabRoomId) return;
+    if (isApplyingRemoteRef.current) {
+      isApplyingRemoteRef.current = false;
+      return;
+    }
+    const t = setTimeout(() => {
+      supabase
+        .from("collab_rooms")
+        .update({ stops, updated_at: new Date().toISOString() })
+        .eq("id", collabRoomId)
+        .then();
+    }, 600);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stops, collabRoomId]);
 
 
 
@@ -1993,6 +2098,7 @@ function RoutePlanner() {
               onToggleComments={toggleComments}
               onCommentDraftChange={(id, v) => setCommentDrafts((prev) => ({ ...prev, [id]: v }))}
               onSubmitComment={submitComment}
+              onOpenJournal={setJournalTrip}
             />
           ) : (
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
@@ -2118,6 +2224,35 @@ function RoutePlanner() {
                 <Plus className="h-4 w-4" /> Durak Ekle
               </button>
             </div>
+
+            {collabRoomId ? (
+              <div className="flex items-center justify-between rounded-xl border border-emerald-200/70 bg-emerald-50/60 px-3 py-2.5">
+                <span className="flex items-center gap-1.5 text-[12.5px] font-semibold text-emerald-700">
+                  <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" /> Canlı ortak oturum aktif
+                </span>
+                <div className="flex gap-1.5">
+                  <button
+                    onClick={() => setCollabModalOpen(true)}
+                    className="rounded-lg bg-white px-2.5 py-1 text-[11.5px] font-semibold text-emerald-700 shadow-sm ring-1 ring-emerald-200 transition hover:bg-emerald-50"
+                  >
+                    Link
+                  </button>
+                  <button
+                    onClick={leaveCollabSession}
+                    className="rounded-lg bg-white px-2.5 py-1 text-[11.5px] font-semibold text-slate-500 shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-50"
+                  >
+                    Çık
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={startCollabSession}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[13px] font-semibold text-slate-600 shadow-sm transition-all duration-200 hover:border-violet-300 hover:bg-violet-50/60 hover:text-violet-700 active:scale-[0.99]"
+              >
+                <Users2 className="h-4 w-4" /> Ortak Planlamaya Başlat
+              </button>
+            )}
 
             {metrics && (
               <div>
@@ -2346,6 +2481,131 @@ function RoutePlanner() {
         </div>
         )}
       </div>
+
+      {journalTrip && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm animate-fade-in"
+          onClick={() => setJournalTrip(null)}
+        >
+          <div
+            className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-slate-200/60 bg-white/95 shadow-2xl backdrop-blur-2xl transform-gpu"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-slate-100 bg-white/95 px-6 py-5 backdrop-blur-xl">
+              <div>
+                <p className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-violet-500">Anı Defteri</p>
+                <h2 className="mt-0.5 font-serif text-[20px] font-bold leading-tight text-slate-900">
+                  {journalTrip.title}
+                </h2>
+                <p className="mt-1 text-[12px] text-slate-500">
+                  @{journalTrip.publisher.username} · {journalTrip.metrics.distance} · {journalTrip.metrics.duration}
+                </p>
+              </div>
+              <button onClick={() => setJournalTrip(null)} className="shrink-0 text-slate-400 hover:text-slate-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="relative px-6 py-6">
+              <div className="absolute bottom-8 left-[31px] top-8 w-0 border-l-2 border-dashed border-slate-200" />
+              <div className="space-y-6">
+                {journalTrip.stops
+                  .filter((s) => s.address.trim().length > 0)
+                  .map((s, i, arr) => (
+                    <div key={s.id} className="relative flex gap-4">
+                      <div
+                        className={`z-[1] mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10.5px] font-bold text-white ${
+                          i === 0 ? "bg-slate-900" : i === arr.length - 1 ? "bg-[#C1502E]" : "bg-violet-400"
+                        }`}
+                      >
+                        {i + 1}
+                      </div>
+                      <div className="min-w-0 flex-1 pb-1">
+                        <p className="font-serif text-[15px] font-bold text-slate-900">
+                          {s.address.split(",")[0]}
+                        </p>
+                        <p className="text-[11.5px] text-slate-400">{s.address}</p>
+                        {s.datetime && (
+                          <p className="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-slate-400">
+                            <Calendar className="h-3 w-3" /> {s.datetime}
+                          </p>
+                        )}
+                        {(s.socialNote?.trim() || s.note?.trim()) && (
+                          <p className="mt-1.5 rounded-lg bg-slate-50 px-3 py-2 text-[12.5px] italic leading-snug text-slate-600">
+                            "{s.socialNote?.trim() || s.note?.trim()}"
+                          </p>
+                        )}
+                        {!!(s.media ?? []).filter((u) => u.trim()).length && (
+                          <div className="mt-2 grid grid-cols-3 gap-1.5">
+                            {(s.media ?? [])
+                              .filter((u) => u.trim())
+                              .map((url, idx) => (
+                                <img
+                                  key={idx}
+                                  src={url}
+                                  alt={s.address}
+                                  loading="lazy"
+                                  className="h-16 w-full rounded-lg object-cover ring-1 ring-slate-200"
+                                  onError={(e) => {
+                                    (e.currentTarget as HTMLImageElement).style.display = "none";
+                                  }}
+                                />
+                              ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {collabModalOpen && collabRoomId && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm animate-fade-in"
+          onClick={() => setCollabModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-slate-200/60 bg-white/95 p-6 shadow-2xl backdrop-blur-2xl transform-gpu"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-500/30">
+                <Users2 className="h-5 w-5" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-base font-bold text-slate-900">Ortak Planlama Başladı</h3>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Bu linki paylaş — açan herkes aynı rotayı görür, yaptığın değişiklikler anlık yansır.
+                </p>
+              </div>
+              <button onClick={() => setCollabModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+              <Link2 className="h-4 w-4 shrink-0 text-slate-400" />
+              <input
+                readOnly
+                value={window.location.href}
+                className="flex-1 truncate bg-transparent text-[12.5px] text-slate-700 focus:outline-none"
+                onFocus={(e) => e.target.select()}
+              />
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(window.location.href);
+                  toast.success("Link kopyalandı!");
+                }}
+                className="shrink-0 rounded-lg bg-violet-600 px-3 py-1.5 text-[12px] font-semibold text-white transition hover:bg-violet-700"
+              >
+                Kopyala
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {saveModalOpen && (
         <div
@@ -2902,6 +3162,7 @@ function DiscoverPanel({
   onToggleComments,
   onCommentDraftChange,
   onSubmitComment,
+  onOpenJournal,
 }: {
   feed: SharedTrip[];
   loading: boolean;
@@ -2918,6 +3179,7 @@ function DiscoverPanel({
   onToggleComments: (tripId: string) => void;
   onCommentDraftChange: (tripId: string, value: string) => void;
   onSubmitComment: (tripId: string) => void;
+  onOpenJournal: (trip: SharedTrip) => void;
 }) {
   const fmtRel = (iso: string) => {
     const diff = Date.now() - new Date(iso).getTime();
@@ -3099,6 +3361,15 @@ function DiscoverPanel({
                   </div>
                 );
               })()}
+
+              {trip.status === "completed" && (
+                <button
+                  onClick={() => onOpenJournal(trip)}
+                  className="mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11.5px] font-semibold text-slate-600 transition hover:border-violet-300 hover:bg-violet-50/60 hover:text-violet-700"
+                >
+                  <FileText className="h-3.5 w-3.5" /> Anı Defterini Aç
+                </button>
+              )}
 
               {/* Smart Route Badges */}
               <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[10.5px] font-semibold">
