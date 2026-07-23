@@ -1396,6 +1396,22 @@ function RoutePlanner() {
     gizli_yer: { label: "Gizli Yer", color: "#7c3aed", icon: "💎" },
   };
 
+  const logEnrichFeedback = (s: EnrichSuggestion, action: "added" | "dismissed") => {
+    // Best-effort, fire-and-forget — never block the UI on this.
+    supabase
+      .from("enrichment_feedback")
+      .insert({
+        place_name: s.name,
+        city: s.city,
+        category: s.category,
+        action,
+        user_id: currentUser?.id ?? null,
+      })
+      .then(({ error }) => {
+        if (error) console.error("enrichment_feedback insert error", error);
+      });
+  };
+
   const addSuggestionAsStop = (s: EnrichSuggestion) => {
     setStops((prev) => {
       const newStop: Stop = {
@@ -1413,15 +1429,18 @@ function RoutePlanner() {
     if (marker) marker.map = null;
     enrichMarkersRef.current = enrichMarkersRef.current.filter((m) => m.__suggestionId !== s.id);
     enrichInfoWindowRef.current?.close();
+    logEnrichFeedback(s, "added");
     toast.success(`"${s.name}" rotana eklendi.`);
   };
 
   const dismissSuggestion = (id: string) => {
+    const s = enrichSuggestions.find((x) => x.id === id);
     setEnrichSuggestions((prev) => prev.filter((x) => x.id !== id));
     const marker = enrichMarkersRef.current.find((m) => m.__suggestionId === id);
     if (marker) marker.map = null;
     enrichMarkersRef.current = enrichMarkersRef.current.filter((m) => m.__suggestionId !== id);
     enrichInfoWindowRef.current?.close();
+    if (s) logEnrichFeedback(s, "dismissed");
   };
 
   const renderEnrichMarker = async (s: EnrichSuggestion) => {
@@ -1498,13 +1517,18 @@ function RoutePlanner() {
 
       let communityPlaces: { name: string; rating: number; ratingCount: number }[] = [];
       let communityComments: string[] = [];
+      let acceptedPlaces: string[] = [];
+      let avoidPlaces: string[] = [];
       try {
+        // Use trust_score (Bayesian-weighted), not raw avg_rating — a trip
+        // with 1 rating of 5 stars shouldn't outrank one with 50 ratings
+        // averaging 4.7; trust_score pulls low-evidence averages back
+        // toward the global mean until enough ratings accumulate.
         const { data: topRated } = await supabase
           .from("shared_trips")
-          .select("id, stops, avg_rating, rating_count")
-          .not("avg_rating", "is", null)
-          .order("avg_rating", { ascending: false })
-          .order("rating_count", { ascending: false })
+          .select("id, stops, avg_rating, rating_count, trust_score")
+          .not("trust_score", "is", null)
+          .order("trust_score", { ascending: false })
           .limit(40);
 
         const matchedTrips = (topRated ?? []).filter((t: any) =>
@@ -1533,12 +1557,42 @@ function RoutePlanner() {
             .limit(15);
           communityComments = (comments ?? []).map((c: any) => c.body);
         }
+
+        // Behavioral feedback loop: did people actually add past suggestions
+        // to their route, or dismiss them? This is real usage signal, not
+        // just explicit ratings — feeds back into what gets suggested next.
+        const { data: feedbackRows } = await supabase
+          .from("enrichment_feedback")
+          .select("place_name, action")
+          .limit(1000);
+        const tally = new Map<string, { added: number; dismissed: number }>();
+        for (const row of (feedbackRows ?? []) as { place_name: string; action: string }[]) {
+          const entry = tally.get(row.place_name) ?? { added: 0, dismissed: 0 };
+          if (row.action === "added") entry.added += 1;
+          else entry.dismissed += 1;
+          tally.set(row.place_name, entry);
+        }
+        const scored = Array.from(tally.entries())
+          .map(([name, { added, dismissed }]) => ({ name, added, dismissed, total: added + dismissed, score: added - dismissed }))
+          .filter((r) => r.total >= 2); // ignore single-sample noise
+        acceptedPlaces = scored
+          .filter((r) => r.score > 0)
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 8)
+          .map((r) => r.name);
+        avoidPlaces = scored
+          .filter((r) => r.score < 0)
+          .sort((a, b) => a.score - b.score)
+          .slice(0, 8)
+          .map((r) => r.name);
       } catch {
         // Community lookup is a best-effort enrichment layer — if it fails,
         // fall through to a plain (non-grounded) suggestion request.
       }
 
-      const result = await callEnrichRoute({ data: { stops: list, communityPlaces, communityComments } });
+      const result = await callEnrichRoute({
+        data: { stops: list, communityPlaces, communityComments, acceptedPlaces, avoidPlaces },
+      });
       const g = window.google;
       if (!g) throw new Error("map_not_ready");
       const geocoder = new g.maps.Geocoder();

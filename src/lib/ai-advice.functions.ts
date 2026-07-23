@@ -157,7 +157,13 @@ export const chatWithAdvisor = createServerFn({ method: "POST" })
 // well-known places).
 export const enrichRoute = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => {
-    const data = input as { stops?: unknown; communityPlaces?: unknown; communityComments?: unknown };
+    const data = input as {
+      stops?: unknown;
+      communityPlaces?: unknown;
+      communityComments?: unknown;
+      acceptedPlaces?: unknown;
+      avoidPlaces?: unknown;
+    };
     if (!data || !Array.isArray(data.stops)) throw new Error("invalid_input");
     const stops = (data.stops as unknown[])
       .map((s) => (typeof s === "string" ? s.trim() : ""))
@@ -185,7 +191,17 @@ export const enrichRoute = createServerFn({ method: "POST" })
           .slice(0, 15)
       : [];
 
-    return { stops, communityPlaces, communityComments };
+    const strList = (v: unknown, max: number) =>
+      Array.isArray(v)
+        ? (v as unknown[])
+            .map((x) => (typeof x === "string" ? x.trim().slice(0, 120) : ""))
+            .filter((x) => x.length > 0)
+            .slice(0, max)
+        : [];
+    const acceptedPlaces = strList(data.acceptedPlaces, 8);
+    const avoidPlaces = strList(data.avoidPlaces, 8);
+
+    return { stops, communityPlaces, communityComments, acceptedPlaces, avoidPlaces };
   })
   .handler(async ({ data }) => {
     const apiKey = process.env.OPENAI_API_KEY;
@@ -205,8 +221,21 @@ export const enrichRoute = createServerFn({ method: "POST" })
         }\n\nBu topluluk verisindeki yerlerden rotaya coğrafi olarak uygun olanları MUTLAKA önerilerin arasına dahil et ve bunlar için "topluluk_onayli": true koy; "reason" alanında gerçek puana atıfta bulun (örn: "Vialume topluluğunda 12 kullanıcıdan 4.6/5 puan aldı"). Topluluk verisi rotaya uygun değilse ya da tüm önerileri dolduramıyorsan, kalanları kendi bilgine dayanarak ekle ve bunlara "topluluk_onayli": false koy.`
       : `\n\nHenüz bu rota için topluluk verisi yok, tüm önerilere "topluluk_onayli": false koy.`;
 
+    const feedbackBlock =
+      data.acceptedPlaces.length || data.avoidPlaces.length
+        ? `\n\nDAVRANIŞSAL GERİ BİLDİRİM (Vialume kullanıcılarının geçmişte önerilere gerçekte ne yaptığı):${
+            data.acceptedPlaces.length
+              ? `\n- Kullanıcılar önerildiğinde gerçekten rotalarına eklediği yerler (rotaya uygunsa öncelik ver): ${data.acceptedPlaces.join(", ")}`
+              : ""
+          }${
+            data.avoidPlaces.length
+              ? `\n- Kullanıcılar önerildiğinde sürekli reddettiği/geçtiği yerler (bunları ÖNERME, rotaya coğrafi olarak uygun olsa bile): ${data.avoidPlaces.join(", ")}`
+              : ""
+          }`
+        : "";
+
     const prompt = `Şu rotayı planlıyorum: ${data.stops.join(" → ")}.
-Rotadaki her bacak için (${legs.join(" | ")}) ana yoldan çok fazla sapmayan, GERÇEK ve tanınmış (uydurma olmayan) 1-2 keşif noktası öner: manzara noktaları, yerel lezzet durakları, ya da az bilinen/gizli kalmış yerler. Sadece Türkiye'de değil, rotanın geçtiği her ülkede gerçekten var olan, doğrulanabilir yerler seç.${communityBlock}
+Rotadaki her bacak için (${legs.join(" | ")}) ana yoldan çok fazla sapmayan, GERÇEK ve tanınmış (uydurma olmayan) 1-2 keşif noktası öner: manzara noktaları, yerel lezzet durakları, ya da az bilinen/gizli kalmış yerler. Sadece Türkiye'de değil, rotanın geçtiği her ülkede gerçekten var olan, doğrulanabilir yerler seç.${communityBlock}${feedbackBlock}
 
 SADECE şu JSON formatında, başka hiçbir metin olmadan cevap ver:
 {"suggestions": [{"name": "Yer adı", "city": "En yakın şehir/kasaba, ülke", "category": "manzara" | "yerel_lezzet" | "gizli_yer", "reason": "Neden mutlaka uğranmalı, tek cümle, Türkçe", "topluluk_onayli": true | false}]}
