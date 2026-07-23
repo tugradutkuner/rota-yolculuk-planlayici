@@ -157,13 +157,35 @@ export const chatWithAdvisor = createServerFn({ method: "POST" })
 // well-known places).
 export const enrichRoute = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => {
-    const data = input as { stops?: unknown };
+    const data = input as { stops?: unknown; communityPlaces?: unknown; communityComments?: unknown };
     if (!data || !Array.isArray(data.stops)) throw new Error("invalid_input");
     const stops = (data.stops as unknown[])
       .map((s) => (typeof s === "string" ? s.trim() : ""))
       .filter((s) => s.length > 0);
     if (stops.length < 2) throw new Error("not_enough_stops");
-    return { stops };
+
+    const communityPlaces = Array.isArray(data.communityPlaces)
+      ? (data.communityPlaces as unknown[])
+          .map((p) => {
+            const o = p as Record<string, unknown>;
+            return {
+              name: typeof o.name === "string" ? o.name.trim().slice(0, 120) : "",
+              rating: typeof o.rating === "number" ? o.rating : null,
+              ratingCount: typeof o.ratingCount === "number" ? o.ratingCount : 0,
+            };
+          })
+          .filter((p) => p.name.length > 0)
+          .slice(0, 20)
+      : [];
+
+    const communityComments = Array.isArray(data.communityComments)
+      ? (data.communityComments as unknown[])
+          .map((c) => (typeof c === "string" ? c.trim().slice(0, 200) : ""))
+          .filter((c) => c.length > 0)
+          .slice(0, 15)
+      : [];
+
+    return { stops, communityPlaces, communityComments };
   })
   .handler(async ({ data }) => {
     const apiKey = process.env.OPENAI_API_KEY;
@@ -172,11 +194,22 @@ export const enrichRoute = createServerFn({ method: "POST" })
     }
 
     const legs = data.stops.slice(0, -1).map((s, i) => `${s} → ${data.stops[i + 1]}`);
+
+    const communityBlock = data.communityPlaces.length
+      ? `\n\nVialume TOPLULUK VERİSİ (gerçek kullanıcı puanları — uydurma değil, veritabanından geliyor):\n${data.communityPlaces
+          .map((p) => `- "${p.name}" — ${p.ratingCount} kullanıcıdan ortalama ${p.rating?.toFixed(1) ?? "?"}/5 puan`)
+          .join("\n")}${
+          data.communityComments.length
+            ? `\n\nGerçek kullanıcı yorumlarından örnekler:\n${data.communityComments.map((c) => `- "${c}"`).join("\n")}`
+            : ""
+        }\n\nBu topluluk verisindeki yerlerden rotaya coğrafi olarak uygun olanları MUTLAKA önerilerin arasına dahil et ve bunlar için "topluluk_onayli": true koy; "reason" alanında gerçek puana atıfta bulun (örn: "Vialume topluluğunda 12 kullanıcıdan 4.6/5 puan aldı"). Topluluk verisi rotaya uygun değilse ya da tüm önerileri dolduramıyorsan, kalanları kendi bilgine dayanarak ekle ve bunlara "topluluk_onayli": false koy.`
+      : `\n\nHenüz bu rota için topluluk verisi yok, tüm önerilere "topluluk_onayli": false koy.`;
+
     const prompt = `Şu rotayı planlıyorum: ${data.stops.join(" → ")}.
-Rotadaki her bacak için (${legs.join(" | ")}) ana yoldan çok fazla sapmayan, GERÇEK ve tanınmış (uydurma olmayan) 1-2 keşif noktası öner: manzara noktaları, yerel lezzet durakları, ya da az bilinen/gizli kalmış yerler. Sadece Türkiye'de değil, rotanın geçtiği her ülkede gerçekten var olan, doğrulanabilir yerler seç.
+Rotadaki her bacak için (${legs.join(" | ")}) ana yoldan çok fazla sapmayan, GERÇEK ve tanınmış (uydurma olmayan) 1-2 keşif noktası öner: manzara noktaları, yerel lezzet durakları, ya da az bilinen/gizli kalmış yerler. Sadece Türkiye'de değil, rotanın geçtiği her ülkede gerçekten var olan, doğrulanabilir yerler seç.${communityBlock}
 
 SADECE şu JSON formatında, başka hiçbir metin olmadan cevap ver:
-{"suggestions": [{"name": "Yer adı", "city": "En yakın şehir/kasaba, ülke", "category": "manzara" | "yerel_lezzet" | "gizli_yer", "reason": "Neden mutlaka uğranmalı, tek cümle, Türkçe"}]}
+{"suggestions": [{"name": "Yer adı", "city": "En yakın şehir/kasaba, ülke", "category": "manzara" | "yerel_lezzet" | "gizli_yer", "reason": "Neden mutlaka uğranmalı, tek cümle, Türkçe", "topluluk_onayli": true | false}]}
 
 Toplam en fazla 6 öneri ver. Yerler kesinlikle gerçek olmalı, uydurma isim kullanma.`;
 
@@ -192,7 +225,7 @@ Toplam en fazla 6 öneri ver. Yerler kesinlikle gerçek olmalı, uydurma isim ku
           {
             role: "system",
             content:
-              "Sen gerçek, doğrulanabilir coğrafi yer bilgisi veren bir seyahat uzmanısın. Sadece gerçekten var olan yerleri önerirsin, asla uydurmazsın. Sadece istenen JSON formatında cevap verirsin, başka hiçbir açıklama eklemezsin.",
+              "Sen gerçek, doğrulanabilir coğrafi yer bilgisi veren bir seyahat uzmanısın. Sadece gerçekten var olan yerleri önerirsin, asla uydurmazsın. Sana verilen topluluk verisini (gerçek kullanıcı puanları/yorumları) önerilerinde önceliklendirmekle yükümlüsün, bunu görmezden gelemezsin. Sadece istenen JSON formatında cevap verirsin, başka hiçbir açıklama eklemezsin.",
           },
           { role: "user", content: prompt },
         ],
@@ -239,7 +272,8 @@ Toplam en fazla 6 öneri ver. Yerler kesinlikle gerçek olmalı, uydurma isim ku
           o.category === "manzara" || o.category === "yerel_lezzet" || o.category === "gizli_yer"
             ? o.category
             : "gizli_yer";
-        return { name, city, reason, category };
+        const topluluk_onayli = o.topluluk_onayli === true;
+        return { name, city, reason, category, topluluk_onayli };
       })
       .filter((s) => s.name.length > 0 && s.city.length > 0)
       .slice(0, 6);

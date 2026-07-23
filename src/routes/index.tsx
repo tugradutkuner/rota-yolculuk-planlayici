@@ -44,6 +44,8 @@ import {
   Flag,
   Send,
   Fuel,
+  Star,
+  MessageCircle,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -284,7 +286,7 @@ const GOOGLE_MAPS_LIBRARIES = "places,geometry,routes,marker";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Rota Planlayıcı" },
+      { title: "Vialume" },
       { name: "description", content: "Google Haritalar ile çok duraklı rota planlama uygulaması." },
     ],
   }),
@@ -317,6 +319,7 @@ interface EnrichSuggestion {
   location: { lat: number; lng: number };
   formattedAddress: string;
   placeId?: string;
+  topluluk_onayli?: boolean;
 }
 
 interface SavedTrip {
@@ -349,6 +352,19 @@ interface SharedTrip {
   likes: number;
   likedByMe?: boolean;
   status?: "planned" | "completed";
+  avgRating: number | null;
+  ratingCount: number;
+  myRating?: number;
+}
+
+interface TripComment {
+  id: string;
+  tripId: string;
+  userId: string;
+  username: string;
+  avatarUrl: string;
+  body: string;
+  createdAt: string;
 }
 
 
@@ -463,6 +479,22 @@ function RoutePlanner() {
   >({});
   const [fuelType, setFuelType] = useState<"gasoline" | "diesel">("gasoline");
   const [fuelConsumption, setFuelConsumption] = useState(7); // L/100km
+  const [showWelcome, setShowWelcome] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return !window.localStorage.getItem("vialume_welcomed");
+    } catch {
+      return false;
+    }
+  });
+  const dismissWelcome = () => {
+    setShowWelcome(false);
+    try {
+      window.localStorage.setItem("vialume_welcomed", "1");
+    } catch {
+      /* ignore */
+    }
+  };
   const [enrichLoading, setEnrichLoading] = useState(false);
   const [enrichError, setEnrichError] = useState<string | null>(null);
   const enrichMarkersRef = useRef<any[]>([]);
@@ -831,7 +863,7 @@ function RoutePlanner() {
     return (h ? parseInt(h[1], 10) * 60 : 0) + (m ? parseInt(m[1], 10) : 0);
   };
 
-  const dbRowToSharedTrip = (row: any, likedSet: Set<string>): SharedTrip => ({
+  const dbRowToSharedTrip = (row: any, likedSet: Set<string>, myRatings: Map<string, number>): SharedTrip => ({
     id: row.id,
     title: row.title,
     description: row.description ?? "",
@@ -851,6 +883,9 @@ function RoutePlanner() {
     likes: row.like_count ?? 0,
     likedByMe: likedSet.has(row.id),
     status: row.status ?? "planned",
+    avgRating: row.avg_rating != null ? Number(row.avg_rating) : null,
+    ratingCount: row.rating_count ?? 0,
+    myRating: myRatings.get(row.id),
   });
 
   const refreshFeed = async () => {
@@ -864,15 +899,107 @@ function RoutePlanner() {
       return;
     }
     let likedSet = new Set<string>();
+    let myRatings = new Map<string, number>();
     if (currentUser) {
-      const { data: likedRows } = await supabase
-        .from("trip_likes")
-        .select("trip_id")
-        .eq("user_id", currentUser.id);
+      const [{ data: likedRows }, { data: ratingRows }] = await Promise.all([
+        supabase.from("trip_likes").select("trip_id").eq("user_id", currentUser.id),
+        supabase.from("trip_ratings").select("trip_id, rating").eq("user_id", currentUser.id),
+      ]);
       likedSet = new Set((likedRows ?? []).map((r: any) => r.trip_id));
+      myRatings = new Map((ratingRows ?? []).map((r: any) => [r.trip_id, r.rating]));
     }
-    setFeed((data ?? []).map((row) => dbRowToSharedTrip(row, likedSet)));
+    setFeed((data ?? []).map((row) => dbRowToSharedTrip(row, likedSet, myRatings)));
   };
+
+  const rateTrip = async (tripId: string, rating: number) => {
+    if (!currentUser) {
+      toast.error("Puan vermek için giriş yapmalısın.");
+      openLogin("signin");
+      return;
+    }
+    const prevFeed = feed;
+    setFeed((prev) => prev.map((t) => (t.id === tripId ? { ...t, myRating: rating } : t)));
+    const { error } = await supabase
+      .from("trip_ratings")
+      .upsert({ trip_id: tripId, user_id: currentUser.id, rating }, { onConflict: "trip_id,user_id" });
+    if (error) {
+      setFeed(prevFeed);
+      toast.error("Puan kaydedilemedi. Lütfen tekrar deneyin.");
+      return;
+    }
+    // Re-pull just this trip's aggregate stats so avg_rating/rating_count reflect the DB trigger's update.
+    const { data: updated } = await supabase
+      .from("shared_trips")
+      .select("avg_rating, rating_count")
+      .eq("id", tripId)
+      .maybeSingle();
+    if (updated) {
+      setFeed((prev) =>
+        prev.map((t) =>
+          t.id === tripId
+            ? { ...t, avgRating: updated.avg_rating != null ? Number(updated.avg_rating) : null, ratingCount: updated.rating_count ?? 0 }
+            : t,
+        ),
+      );
+    }
+  };
+
+  const [tripComments, setTripComments] = useState<Record<string, TripComment[]>>({});
+  const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
+  const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set());
+
+  const loadComments = async (tripId: string) => {
+    const { data, error } = await supabase
+      .from("trip_comments")
+      .select("id, user_id, body, created_at, profiles(username, avatar_url)")
+      .eq("trip_id", tripId)
+      .order("created_at", { ascending: true })
+      .limit(50);
+    if (error) return;
+    setTripComments((prev) => ({
+      ...prev,
+      [tripId]: (data ?? []).map((row: any) => ({
+        id: row.id,
+        tripId,
+        userId: row.user_id,
+        username: row.profiles?.username ?? "gezgin",
+        avatarUrl: row.profiles?.avatar_url || avatarFor(row.profiles?.username ?? "gezgin"),
+        body: row.body,
+        createdAt: row.created_at,
+      })),
+    }));
+  };
+
+  const toggleComments = (tripId: string) => {
+    setExpandedComments((prev) => {
+      const next = new Set(prev);
+      if (next.has(tripId)) {
+        next.delete(tripId);
+      } else {
+        next.add(tripId);
+        loadComments(tripId);
+      }
+      return next;
+    });
+  };
+
+  const submitComment = async (tripId: string) => {
+    if (!currentUser) {
+      toast.error("Yorum yapmak için giriş yapmalısın.");
+      openLogin("signin");
+      return;
+    }
+    const body = (commentDrafts[tripId] ?? "").trim();
+    if (!body) return;
+    const { error } = await supabase.from("trip_comments").insert({ trip_id: tripId, user_id: currentUser.id, body });
+    if (error) {
+      toast.error("Yorum eklenemedi. Lütfen tekrar deneyin.");
+      return;
+    }
+    setCommentDrafts((prev) => ({ ...prev, [tripId]: "" }));
+    loadComments(tripId);
+  };
+
 
   const openShareModal = (trip: SavedTrip) => {
     if (!currentUser) {
@@ -908,7 +1035,7 @@ function RoutePlanner() {
       toast.error("Paylaşılamadı. Lütfen tekrar deneyin.");
       return;
     }
-    setFeed((prev) => [dbRowToSharedTrip(data, new Set()), ...prev]);
+    setFeed((prev) => [dbRowToSharedTrip(data, new Set(), new Map()), ...prev]);
     setShareTrip(null);
     setShareDesc("");
     toast.success(shareStatus === "completed" ? "Tamamlanan gezin toplulukta paylaşıldı!" : "Gezi toplulukta paylaşıldı!");
@@ -1333,6 +1460,7 @@ function RoutePlanner() {
       content.style.cssText = "font-family: inherit; min-width: 220px; max-width: 260px; padding: 2px;";
       content.innerHTML = `
         <div style="display:inline-block;font-size:10.5px;font-weight:700;color:${meta.color};background:${meta.color}1a;border-radius:999px;padding:3px 9px;margin-bottom:6px;">${meta.icon} ${meta.label}</div>
+        ${s.topluluk_onayli ? `<div style="display:inline-block;margin-left:4px;font-size:10.5px;font-weight:700;color:#B8862F;background:#B8862F1a;border-radius:999px;padding:3px 9px;margin-bottom:6px;">👥 Topluluk Onaylı</div>` : ""}
         <div style="font-size:14px;font-weight:700;color:#1e293b;margin-bottom:2px;">${s.name}</div>
         <div style="font-size:12px;color:#64748b;margin-bottom:8px;">${s.city}</div>
         <div style="font-size:12.5px;color:#334155;line-height:1.5;margin-bottom:12px;">${s.reason}</div>
@@ -1359,7 +1487,58 @@ function RoutePlanner() {
     clearEnrichment();
     setEnrichLoading(true);
     try {
-      const result = await callEnrichRoute({ data: { stops: list } });
+      // Pull real community signal (ratings/comments) for trips whose stops
+      // fall in the same countries as this route, so the AI is grounded in
+      // actual Vialume user data instead of just its own general knowledge.
+      const routeCountries = new Set<string>();
+      for (const address of list) {
+        const c = extractCountry(address);
+        if (c) routeCountries.add(c.toLowerCase());
+      }
+
+      let communityPlaces: { name: string; rating: number; ratingCount: number }[] = [];
+      let communityComments: string[] = [];
+      try {
+        const { data: topRated } = await supabase
+          .from("shared_trips")
+          .select("id, stops, avg_rating, rating_count")
+          .not("avg_rating", "is", null)
+          .order("avg_rating", { ascending: false })
+          .order("rating_count", { ascending: false })
+          .limit(40);
+
+        const matchedTrips = (topRated ?? []).filter((t: any) =>
+          (t.stops as Stop[]).some((s) => {
+            const c = extractCountry(s.address);
+            return c && routeCountries.has(c.toLowerCase());
+          }),
+        );
+
+        const seen = new Set<string>();
+        for (const t of matchedTrips) {
+          for (const s of t.stops as Stop[]) {
+            const label = s.address.split(",")[0]?.trim();
+            if (!label || seen.has(label)) continue;
+            seen.add(label);
+            communityPlaces.push({ name: label, rating: t.avg_rating, ratingCount: t.rating_count });
+          }
+        }
+        communityPlaces = communityPlaces.slice(0, 20);
+
+        if (matchedTrips.length) {
+          const { data: comments } = await supabase
+            .from("trip_comments")
+            .select("body")
+            .in("trip_id", matchedTrips.slice(0, 10).map((t: any) => t.id))
+            .limit(15);
+          communityComments = (comments ?? []).map((c: any) => c.body);
+        }
+      } catch {
+        // Community lookup is a best-effort enrichment layer — if it fails,
+        // fall through to a plain (non-grounded) suggestion request.
+      }
+
+      const result = await callEnrichRoute({ data: { stops: list, communityPlaces, communityComments } });
       const g = window.google;
       if (!g) throw new Error("map_not_ready");
       const geocoder = new g.maps.Geocoder();
@@ -1379,6 +1558,7 @@ function RoutePlanner() {
             city: raw.city,
             reason: raw.reason,
             category: raw.category as EnrichCategory,
+            topluluk_onayli: (raw as any).topluluk_onayli === true,
             location: {
               lat: geoResult.geometry.location.lat(),
               lng: geoResult.geometry.location.lng(),
@@ -1515,6 +1695,45 @@ function RoutePlanner() {
 
   return (
     <div className="relative h-screen w-screen overflow-hidden text-slate-900">
+      {showWelcome && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl border border-slate-200/60 bg-white/95 p-8 text-center shadow-2xl backdrop-blur-2xl animate-fade-in">
+            <svg viewBox="0 0 40 40" className="mx-auto mb-4 h-14 w-14">
+              <circle cx="20" cy="20" r="18" className="fill-slate-900" />
+              <circle cx="20" cy="20" r="14.5" stroke="currentColor" strokeWidth="0.75" fill="none" className="text-slate-500" />
+              <path d="M20 4v3.2M20 32.8V36M4 20h3.2M32.8 20H36" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" className="text-fuchsia-500" />
+              <path d="M20 12l3 6-3 6-3-6z" className="fill-violet-400" />
+              <path d="M20 12l3 6-3-2-3 2z" fill="white" />
+            </svg>
+            <h1 className="font-serif text-[26px] font-bold leading-tight text-slate-900">Vialume</h1>
+            <p className="mt-2 text-[15px] leading-snug text-slate-600">
+              Rotanızı eşsiz bir deneyime dönüştürün.
+            </p>
+            <div className="mx-auto my-5 h-px w-16 bg-slate-200" />
+            <ul className="mb-6 space-y-2 text-left text-[13px] text-slate-500">
+              <li className="flex items-start gap-2">
+                <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-violet-500" />
+                AI eş-planlayıcınız rotanızı zenginleştirsin
+              </li>
+              <li className="flex items-start gap-2">
+                <Compass className="mt-0.5 h-4 w-4 shrink-0 text-violet-500" />
+                Gerçek gezginlerin paylaştığı rotaları keşfedin
+              </li>
+              <li className="flex items-start gap-2">
+                <Fuel className="mt-0.5 h-4 w-4 shrink-0 text-violet-500" />
+                Yolculuğunuzun tahmini yakıt maliyetini görün
+              </li>
+            </ul>
+            <button
+              onClick={dismissWelcome}
+              className="w-full rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 px-5 py-3 text-[14px] font-semibold text-white shadow-lg shadow-violet-500/30 transition-all duration-200 hover:shadow-xl hover:shadow-violet-500/40 active:scale-[0.98] transform-gpu"
+            >
+              Rotamı Planlamaya Başla
+            </button>
+          </div>
+        </div>
+      )}
+
       <div ref={mapDivRef} className="absolute inset-0 h-full w-full" />
       {!mapReady && !mapError && (
         <div className="absolute inset-0 flex items-center justify-center bg-slate-100 text-sm text-slate-500">
@@ -1543,8 +1762,8 @@ function RoutePlanner() {
             <path d="M20 12l3 6-3-2-3 2z" fill="white" />
           </svg>
           <div className="leading-tight">
-            <p className="font-serif text-[14px] font-bold text-slate-900">Rota Planlayıcı</p>
-            <p className="font-serif text-[10px] italic text-violet-600">yolda ne varsa</p>
+            <p className="font-serif text-[14px] font-bold text-slate-900">Vialume</p>
+            <p className="font-serif text-[10px] italic text-violet-600">yolunu aydınlat</p>
           </div>
         </div>
 
@@ -1713,6 +1932,13 @@ function RoutePlanner() {
               onLoginPrompt={openLogin}
               onNew={startNewRoute}
               onOpenImage={(url, stopName, note) => setLightbox({ url, stopName, note })}
+              onRate={rateTrip}
+              tripComments={tripComments}
+              expandedComments={expandedComments}
+              commentDrafts={commentDrafts}
+              onToggleComments={toggleComments}
+              onCommentDraftChange={(id, v) => setCommentDrafts((prev) => ({ ...prev, [id]: v }))}
+              onSubmitComment={submitComment}
             />
           ) : (
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
@@ -1883,6 +2109,11 @@ function RoutePlanner() {
                               >
                                 {meta.icon} {meta.label}
                               </span>
+                              {s.topluluk_onayli && (
+                                <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-[#B8862F]/10 px-2 py-0.5 text-[10.5px] font-bold text-[#B8862F]">
+                                  👥 Topluluk Onaylı
+                                </span>
+                              )}
                               <p className="mt-1.5 truncate text-[13.5px] font-bold text-slate-900">{s.name}</p>
                               <p className="truncate text-[11.5px] text-slate-500">{s.city}</p>
                               <p className="mt-1 text-[12px] leading-snug text-slate-600">{s.reason}</p>
@@ -2610,6 +2841,13 @@ function DiscoverPanel({
   onLoginPrompt,
   onNew,
   onOpenImage,
+  onRate,
+  tripComments,
+  expandedComments,
+  commentDrafts,
+  onToggleComments,
+  onCommentDraftChange,
+  onSubmitComment,
 }: {
   feed: SharedTrip[];
   loading: boolean;
@@ -2619,6 +2857,13 @@ function DiscoverPanel({
   onLoginPrompt: () => void;
   onNew: () => void;
   onOpenImage: (url: string, stopName: string, note?: string) => void;
+  onRate: (tripId: string, rating: number) => void;
+  tripComments: Record<string, TripComment[]>;
+  expandedComments: Set<string>;
+  commentDrafts: Record<string, string>;
+  onToggleComments: (tripId: string) => void;
+  onCommentDraftChange: (tripId: string, value: string) => void;
+  onSubmitComment: (tripId: string) => void;
 }) {
   const fmtRel = (iso: string) => {
     const diff = Date.now() - new Date(iso).getTime();
@@ -2824,6 +3069,73 @@ function DiscoverPanel({
                   <Clock className="h-3 w-3" /> {trip.metrics.duration}
                 </span>
               </div>
+
+              <div className="mt-3 flex items-center justify-between">
+                <div className="flex items-center gap-0.5">
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <button
+                      key={n}
+                      onClick={() => (currentUser ? onRate(trip.id, n) : onLoginPrompt())}
+                      className="p-0.5 transition-transform active:scale-90"
+                      title={`${n} yıldız ver`}
+                    >
+                      <Star
+                        className={`h-4 w-4 ${
+                          n <= (trip.myRating ?? 0)
+                            ? "fill-amber-400 text-amber-400"
+                            : trip.avgRating && n <= Math.round(trip.avgRating)
+                              ? "fill-amber-200 text-amber-300"
+                              : "text-slate-300"
+                        }`}
+                      />
+                    </button>
+                  ))}
+                  {trip.ratingCount > 0 && (
+                    <span className="ml-1.5 text-[11px] font-semibold text-slate-500">
+                      {trip.avgRating?.toFixed(1)} ({trip.ratingCount})
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={() => onToggleComments(trip.id)}
+                  className="flex items-center gap-1 text-[11.5px] font-semibold text-slate-500 hover:text-violet-600"
+                >
+                  <MessageCircle className="h-3.5 w-3.5" />
+                  {expandedComments.has(trip.id) ? "Yorumları Gizle" : "Yorumlar"}
+                </button>
+              </div>
+
+              {expandedComments.has(trip.id) && (
+                <div className="mt-2.5 space-y-2 rounded-xl bg-slate-50/70 p-3">
+                  {(tripComments[trip.id] ?? []).map((c) => (
+                    <div key={c.id} className="flex items-start gap-2">
+                      <img src={c.avatarUrl} alt={c.username} className="h-6 w-6 shrink-0 rounded-full" />
+                      <div className="min-w-0">
+                        <span className="text-[11.5px] font-bold text-slate-700">@{c.username}</span>
+                        <p className="text-[12px] leading-snug text-slate-600">{c.body}</p>
+                      </div>
+                    </div>
+                  ))}
+                  {(tripComments[trip.id] ?? []).length === 0 && (
+                    <p className="text-[11.5px] text-slate-400">Henüz yorum yok, ilk yorumu sen yaz.</p>
+                  )}
+                  <div className="flex gap-1.5 pt-1">
+                    <input
+                      value={commentDrafts[trip.id] ?? ""}
+                      onChange={(e) => onCommentDraftChange(trip.id, e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && onSubmitComment(trip.id)}
+                      placeholder="Yorum yaz..."
+                      className="flex-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[12px] focus:border-violet-400 focus:outline-none"
+                    />
+                    <button
+                      onClick={() => onSubmitComment(trip.id)}
+                      className="rounded-lg bg-violet-600 px-2.5 text-white transition hover:bg-violet-700"
+                    >
+                      <Send className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div className="mt-3 flex items-center gap-2">
                 <button
